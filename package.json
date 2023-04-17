@@ -4,7 +4,7 @@
     "description": "Stuff and Things. Clipboard history today, sentient salty AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
