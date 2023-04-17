@@ -1,24 +1,36 @@
 import * as vscode from 'vscode';
 
 
-const MAX_ITEMS: number = 20;
 const MAX_ITEM_LEN: number = 2048;
 
 let previousClipboardContent = '';
-let history: string[] = [];
+let history: HistoryEntry[] = [];
 let historyCount: number = 0;
 
 
-function makeQuickSuggestion(word: string, replacement: string) {
+class HistoryEntry {
+    replacement: string;
+    file: string;
+    lineNumber: number;
+
+    constructor(replacement: string, file: string, lineNumber: number) {
+        this.replacement = replacement;
+        this.file = file;
+        this.lineNumber = lineNumber;
+    }
+}
+
+
+function makeQuickSuggestion(word: string, index: number, entry: HistoryEntry) {
     let item = new vscode.CompletionItem(word);
     item.kind = vscode.CompletionItemKind.User;
-    item.detail = "From clipboard";
-    item.insertText = replacement;
+    item.detail = "#" + index + ", copied from " + entry.file;
+    item.insertText = entry.replacement;
     return item;
 }
 
 
-export class MyCompletionProvider implements vscode.CompletionItemProvider {
+export class HistoryCompletionProvider implements vscode.CompletionItemProvider {
     public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken):
         vscode.ProviderResult<vscode.CompletionItem[]> {
 
@@ -26,7 +38,10 @@ export class MyCompletionProvider implements vscode.CompletionItemProvider {
         let offers: string[] = [];
 
         for (let i: number = 0; i < historyCount; ++i) {
-            const words = history[i].trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
+            const entry = history[i];
+            const words = entry.replacement.trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
+
+            items.push(makeQuickSuggestion("clip" + (i + 1), i + 1, entry));
 
             if (words !== null) {
                 words.forEach(word => {
@@ -34,7 +49,7 @@ export class MyCompletionProvider implements vscode.CompletionItemProvider {
 
                     if (!offers.includes(key)) {
                         offers.push(key);
-                        items.push(makeQuickSuggestion(word, history[i]));
+                        items.push(makeQuickSuggestion(word, i + 1, entry));
                     }
                 });
             }
@@ -45,46 +60,116 @@ export class MyCompletionProvider implements vscode.CompletionItemProvider {
 }
 
 
-function onClipboardChanged(text: string) {
+function alreadyInHistory(text: string) {
+    history.forEach(entry => {
+        if (entry.replacement === text) {
+            return true;
+        }
+    });
+
+    return false;
+}
+
+
+function extractFilename(path: string) {
+    let filenameRegex = /\/([^\/]+)$/;
+
+    if (process.platform === 'win32') {
+        filenameRegex = /.*[\\/](.*)$/;
+    }
+
+    const match = path.match(filenameRegex);
+    if (!match) { return path; }
+
+    return match[1];
+}
+
+
+function onClipboardChanged(text: string, lineNum: number) {
     if (text.trim().length === 0) { return; }
-    if (history.includes(text)) { return; }
+    if (alreadyInHistory(text)) { return; }
     if (text.length > MAX_ITEM_LEN) { return; }
 
-    history.push(text);
+    const editor = vscode.window.activeTextEditor;
+    const document = editor?.document;
+    if (!document) { return; }
+
+    const filename = extractFilename(document.fileName);
+    const entry = new HistoryEntry(text, filename, lineNum);
+    history.push(entry);
     ++historyCount;
 
-    while (historyCount > MAX_ITEMS) {
+    const config = vscode.workspace.getConfiguration('tails');
+    const maxEntries = config.get('maxHistoryEntries', 20);
+
+    while (historyCount > maxEntries) {
         history.shift();
         --historyCount;
     }
 }
 
 
-function checkClipboard() {
+function checkClipboard(lineNum: number) {
     vscode.env.clipboard.readText().then((clipboardContent) => {
         if (clipboardContent !== previousClipboardContent) {
             previousClipboardContent = clipboardContent;
-            onClipboardChanged(previousClipboardContent);
+            onClipboardChanged(previousClipboardContent, lineNum);
         }
     });
 }
 
 
-export function activate(context: vscode.ExtensionContext) {
+function addCmdClearHistory(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.clearHistory', () => {
         history = [];
         historyCount = 0;
     });
 
     context.subscriptions.push(cmd);
+}
+
+
+
+function addCmdCutToClipboard(context: vscode.ExtensionContext) {
+    let cmd = vscode.commands.registerCommand('tails.cutToClipboard', () => {
+        vscode.commands.executeCommand('editor.action.clipboardCutAction').then(() => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { return; }
+
+            const lineNum = editor.selection.active.line;
+            checkClipboard(lineNum);
+        });
+    });
+
+    context.subscriptions.push(cmd);
+}
+
+
+function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
+    let cmd = vscode.commands.registerCommand('tails.copyToClipboard', () => {
+        vscode.commands.executeCommand('editor.action.clipboardCopyAction').then(() => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) { return; }
+
+            const lineNum = editor.selection.active.line;
+            checkClipboard(lineNum);
+        });
+    });
+
+    context.subscriptions.push(cmd);
+}
+
+
+export function activate(context: vscode.ExtensionContext) {
+    addCmdClearHistory(context);
+    addCmdCopyToClipboard(context);
+    addCmdCutToClipboard(context);
 
     let myCompleter = vscode.languages.registerCompletionItemProvider(
-        { scheme: 'file', language: '*' }, new MyCompletionProvider()
+        { scheme: 'file', language: '*' }, new HistoryCompletionProvider()
     );
 
     context.subscriptions.push(myCompleter);
-
-    setInterval(checkClipboard, 1000); // Poll every 1 second
 }
 
 
