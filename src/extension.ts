@@ -1,19 +1,17 @@
+/* eslint-disable curly */
 import * as vscode from 'vscode';
 
 
 const MAX_ITEM_LEN: number = 2048;
 
-let previousClipboardContent = '';
-let history: HistoryEntry[] = [];
-let historyCount: number = 0;
-
-
 class HistoryEntry {
+    languageId: string;
     replacement: string;
     file: string;
     lineNumber: number;
 
-    constructor(replacement: string, file: string, lineNumber: number) {
+    constructor(langId: string, replacement: string, file: string, lineNumber: number) {
+        this.languageId = langId;
         this.replacement = replacement;
         this.file = file;
         this.lineNumber = lineNumber;
@@ -21,11 +19,24 @@ class HistoryEntry {
 }
 
 
-function makeQuickSuggestion(word: string, index: number, entry: HistoryEntry) {
+let previousClipboardContent = '';
+let history: HistoryEntry[] = [];
+let historyCount: number = 0;
+
+
+function makeSuggestion(word: string, index: number, entry: HistoryEntry) {
     let item = new vscode.CompletionItem(word);
     item.kind = vscode.CompletionItemKind.User;
     item.detail = "#" + index + ", copied from " + entry.file;
     item.insertText = entry.replacement;
+    return item;
+}
+
+
+function makeShortSuggestion(word: string, repl: string) {
+    let item = new vscode.CompletionItem(word);
+    item.kind = vscode.CompletionItemKind.User;
+    item.insertText = repl;
     return item;
 }
 
@@ -36,26 +47,55 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
 
         let items: vscode.CompletionItem[] = [];
         let offers: string[] = [];
+        const langId: string = document.languageId;
 
         for (let i: number = 0; i < historyCount; ++i) {
             const entry = history[i];
-            const words = entry.replacement.trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
 
-            items.push(makeQuickSuggestion("clip" + (i + 1), i + 1, entry));
+            if (entry.languageId === langId) {
+                items.push(makeSuggestion("clip" + (i + 1), i + 1, entry));
 
-            if (words !== null) {
-                words.forEach(word => {
-                    const key = word + ':' + history[i];
+                const words = entry.replacement.trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
 
-                    if (!offers.includes(key)) {
-                        offers.push(key);
-                        items.push(makeQuickSuggestion(word, i + 1, entry));
-                    }
-                });
+                if (words !== null) {
+                    words.forEach(word => {
+                        const key = word + ':' + history[i].replacement;
+
+                        if (!offers.includes(key)) {
+                            offers.push(key);
+                            items.push(makeSuggestion(word, i + 1, entry));
+                        }
+                    });
+                }
             }
         }
 
         return items;
+    }
+}
+
+
+export class HistoryInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
+    provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, context: vscode.InlineCompletionContext, token: vscode.CancellationToken): vscode.ProviderResult<vscode.InlineCompletionItem[] | vscode.InlineCompletionList> {
+        let suggestions: vscode.InlineCompletionItem[] = [];
+        const lineText = document.lineAt(position.line).text.substring(0, position.character).trimStart();
+        const langId = document.languageId;
+
+        if (lineText.length >= 3) {
+            for (const entry of history) {
+                if (entry.languageId === langId) {
+                    const str: string = entry.replacement;
+
+                    if (str.trim().startsWith(lineText)) {
+                        const suggestion = new vscode.InlineCompletionItem(str.trim().substring(lineText.length));
+                        suggestion.range = new vscode.Range(position.line, position.character, position.line, position.character);
+                        suggestions.push(suggestion);
+                    }
+                }
+            }
+        }
+
+        return suggestions;
     }
 }
 
@@ -79,23 +119,22 @@ function extractFilename(path: string) {
     }
 
     const match = path.match(filenameRegex);
-    if (!match) { return path; }
+    if (!match) return path;
 
     return match[1];
 }
 
 
 function onClipboardChanged(text: string, lineNum: number) {
-    if (text.trim().length === 0) { return; }
-    if (alreadyInHistory(text)) { return; }
-    if (text.length > MAX_ITEM_LEN) { return; }
+    if (text.trim().length === 0) return;
+    if (alreadyInHistory(text)) return;
+    if (text.length > MAX_ITEM_LEN) return;
 
-    const editor = vscode.window.activeTextEditor;
-    const document = editor?.document;
-    if (!document) { return; }
+    const document = vscode.window.activeTextEditor?.document;
+    if (!document) return;
 
     const filename = extractFilename(document.fileName);
-    const entry = new HistoryEntry(text, filename, lineNum);
+    const entry = new HistoryEntry(document.languageId, text, filename, lineNum);
     history.push(entry);
     ++historyCount;
 
@@ -129,16 +168,33 @@ function addCmdClearHistory(context: vscode.ExtensionContext) {
 }
 
 
+function getSelectionLineCount() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) { return 0; }
+
+    const startLine = editor.selection.start.line;
+    const endLine = editor.selection.end.line;
+    const adjustment = editor.selection.end.character === 0 ? 0 : 1;
+
+    return endLine - startLine + adjustment;
+}
+
 
 function addCmdCutToClipboard(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.cutToClipboard', () => {
-        vscode.commands.executeCommand('editor.action.clipboardCutAction').then(() => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) { return; }
+        const config = vscode.workspace.getConfiguration('tails');
+        const lineLimit = config.get('lineCountLimit', 5);
+        const lineCount: number = getSelectionLineCount();
 
-            const lineNum = editor.selection.active.line;
-            checkClipboard(lineNum);
-        });
+        if (lineLimit > 0 && lineCount <= lineLimit) {
+            vscode.commands.executeCommand('editor.action.clipboardCutAction').then(() => {
+                const editor = vscode.window.activeTextEditor;
+                if (!editor) return;
+
+                const lineNum = editor.selection.active.line;
+                checkClipboard(lineNum);
+            });
+        }
     });
 
     context.subscriptions.push(cmd);
@@ -147,13 +203,19 @@ function addCmdCutToClipboard(context: vscode.ExtensionContext) {
 
 function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.copyToClipboard', () => {
-        vscode.commands.executeCommand('editor.action.clipboardCopyAction').then(() => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) { return; }
+        const config = vscode.workspace.getConfiguration('tails');
+        const lineLimit = config.get('lineCountLimit', 5);
+        const lineCount: number = getSelectionLineCount();
 
-            const lineNum = editor.selection.active.line;
-            checkClipboard(lineNum);
-        });
+        if (lineLimit > 0 && lineCount <= lineLimit) {
+            vscode.commands.executeCommand('editor.action.clipboardCopyAction').then(() => {
+                const editor = vscode.window.activeTextEditor;
+                if (!editor) return;
+
+                const lineNum = editor.selection.active.line;
+                checkClipboard(lineNum);
+            });
+        }
     });
 
     context.subscriptions.push(cmd);
@@ -165,11 +227,17 @@ export function activate(context: vscode.ExtensionContext) {
     addCmdCopyToClipboard(context);
     addCmdCutToClipboard(context);
 
-    let myCompleter = vscode.languages.registerCompletionItemProvider(
+    let codeCompletionHandler = vscode.languages.registerCompletionItemProvider(
         { scheme: 'file', language: '*' }, new HistoryCompletionProvider()
     );
 
-    context.subscriptions.push(myCompleter);
+    context.subscriptions.push(codeCompletionHandler);
+
+    let inlineHandler = vscode.languages.registerInlineCompletionItemProvider(
+        { scheme: 'file', language: '*' }, new HistoryInlineCompletionProvider()
+    );
+
+    context.subscriptions.push(inlineHandler);
 }
 
 
