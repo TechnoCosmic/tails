@@ -42,6 +42,16 @@
                     "type": "number",
                     "default": 5,
                     "description": "Any cut/copied text with more lines than this will not be put into history"
+                },
+
+                "tails.ignoredWords": {
+                    "type": "array",
+                    "description": "Clipboard entries will not be indexed by these words"
+                },
+
+                "tails.ignoredRegexes": {
+                    "type": "array",
+                    "description": "Clipboard entries will not be indexed by terms matching these regular expressions"
                 }
             }
         },

@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 
 const MAX_ITEM_LEN: number = 2048;
 
+
 class HistoryEntry {
     languageId: string;
     replacement: string;
@@ -51,22 +52,21 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
 
         for (let i: number = 0; i < historyCount; ++i) {
             const entry = history[i];
+            const words = entry.replacement.trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
 
-            if (entry.languageId === langId) {
-                items.push(makeSuggestion("clip" + (i + 1), i + 1, entry));
+            items.push(makeSuggestion("clip" + (i + 1), i + 1, entry));
 
-                const words = entry.replacement.trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
-
-                if (words !== null) {
-                    words.forEach(word => {
+            if (words !== null) {
+                words.forEach(word => {
+                    if (!isIgnoredWord(word)) {
                         const key = word + ':' + history[i].replacement;
 
                         if (!offers.includes(key)) {
                             offers.push(key);
                             items.push(makeSuggestion(word, i + 1, entry));
                         }
-                    });
-                }
+                    }
+                });
             }
         }
 
@@ -122,6 +122,26 @@ function extractFilename(path: string) {
     if (!match) return path;
 
     return match[1];
+}
+
+
+function isIgnoredWord(str: string) {
+    const config = vscode.workspace.getConfiguration('tails');
+    const ignoredWords = config.get<string[]>('ignoredWords') || [];
+    const ignoredRegexes = config.get<string[]>('ignoredRegexes') || [];
+
+    for (let word of ignoredWords) {
+        if (word === str) {
+            return true;
+        }
+    }
+
+    for (let reg of ignoredRegexes) {
+        const match = str.match(reg);
+        if (match) { return true; }
+    }
+
+    return false;
 }
 
 
