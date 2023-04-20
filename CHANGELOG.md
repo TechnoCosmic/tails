@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.0.6]
+
+- Smarter indentation when presenting inline suggestions
+- Put normal Intellisense code completion back in
+- Much tidier code, but plenty to go
+
 ## [1.0.4]
 
 - Fixed a bug with copying/cutting longer than lineCountLimit

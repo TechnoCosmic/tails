@@ -1,31 +1,27 @@
-/* eslint-disable curly */
-import { join } from 'path';
 import * as vscode from 'vscode';
 
 
 class HistoryEntry {
     languageId: string;
     replacement: string[];
-    file: string;
-    lineNumber: number;
+    keywords: string[];
 
-    constructor(langId: string, replacement: string[], file: string, lineNumber: number) {
+    constructor(langId: string, replacement: string[], keywords: string[]) {
         this.languageId = langId;
         this.replacement = replacement;
-        this.file = file;
-        this.lineNumber = lineNumber;
+        this.keywords = keywords;
     }
 }
 
 
 let previousClipboardContent = '';
-let history: HistoryEntry[] = [];
+let historyEntries: HistoryEntry[] = [];
 let historyCount: number = 0;
 
 
 function getSetting<T>(str: string, def: T): T {
     const config = vscode.workspace.getConfiguration('tails');
-    return config.get<T>('str', def);
+    return config.get<T>(str, def);
 }
 
 
@@ -50,31 +46,98 @@ function getCurrentLineIndentation(): string {
 }
 
 
+function isIgnoredWord(str: string) {
+    const ignoredWords = getSetting<string[]>('ignoredWords', []) || [];
+    const ignoredRegexes = getSetting<string[]>('ignoredRegexes', []) || [];
+
+    for (let word of ignoredWords) {
+        if (word === str) {
+            return true;
+        }
+    }
+
+    for (let reg of ignoredRegexes) {
+        const match = str.match(reg);
+        if (match) return true;
+    }
+
+    return false;
+}
+
+
+function indexClip(str: string): string[] {
+    const words = str.trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
+    if (!words) return [];
+
+    let offers: string[] = [];
+
+    if (words !== null) {
+        words.forEach(word => {
+            if (!isIgnoredWord(word)) {
+                if (!offers.includes(word)) {
+                    offers.push(word);
+                }
+            }
+        });
+    }
+
+    return offers;
+}
+
+
+function makeSuggestion(word: string, repl: string) {
+    let item = new vscode.CompletionItem(word);
+    item.kind = vscode.CompletionItemKind.User;
+    item.insertText = repl;
+    return item;
+}
+
+
+export class HistoryCompletionProvider implements vscode.CompletionItemProvider {
+    public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken):
+        vscode.ProviderResult<vscode.CompletionItem[]> {
+        if (getSetting<boolean>('enableCompletions', true) !== true) return [];
+
+        let items: vscode.CompletionItem[] = [];
+        const eol: string = getEndOfLineString(document.eol);
+
+        for (const entry of historyEntries) {
+            for (const word of entry.keywords) {
+                const replacement: string = entry.replacement.join(eol);
+                const item = makeSuggestion(word, replacement);
+                items.push(item);
+            }
+        }
+        return items;
+    }
+}
+
+
 export class HistoryInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
     provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, context: vscode.InlineCompletionContext, token: vscode.CancellationToken): vscode.ProviderResult<vscode.InlineCompletionItem[] | vscode.InlineCompletionList> {
+        if (getSetting<boolean>('enableInlineSuggestions', true) !== true) return [];
+
         let suggestions: vscode.InlineCompletionItem[] = [];
 
-        // get the current line text
         const lineTextOrig = document.lineAt(position.line).text;
-
-        // check if the cursor is at the end of the line
         const isAtEol = position.character === lineTextOrig.length;
         const lineText = lineTextOrig.substring(0, position.character).trimStart();
         const langId = document.languageId;
 
-        if (isAtEol && lineText.length >= 3) {
-            for (const entry of history) {
-                if (entry.languageId !== langId) { continue; }
+        if (!isAtEol) return [];
+        if (lineText.length < 3) return [];
 
-                const indent = getCurrentLineIndentation();
-                const joinStr = getEndOfLineString(document.eol) + indent;
-                const str: string = entry.replacement.join(joinStr);
+        for (const entry of historyEntries) {
+            if (entry.languageId !== langId) continue;
 
-                if (entry.replacement[0].trim().startsWith(lineText)) {
-                    const suggestion = new vscode.InlineCompletionItem(str.trim().substring(lineText.length));
-                    suggestion.range = new vscode.Range(position.line, position.character, position.line, position.character);
-                    suggestions.push(suggestion);
-                }
+            const indent = getCurrentLineIndentation();
+            const joinStr = getEndOfLineString(document.eol) + indent;
+            const str: string = entry.replacement.join(joinStr);
+
+            if (entry.replacement[0].trim().startsWith(lineText)) {
+                const suggestion = new vscode.InlineCompletionItem(str.trim().substring(lineText.length));
+                suggestion.range = new vscode.Range(position.line, position.character, position.line, position.character);
+                suggestions.push(suggestion);
             }
         }
 
@@ -99,7 +162,7 @@ function extractFilename(path: string) {
 
 function addCmdClearHistory(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.clearHistory', () => {
-        history = [];
+        historyEntries = [];
         historyCount = 0;
     });
 
@@ -150,29 +213,41 @@ function removeCommonLeadingWhitespace(lines: string[]): string[] {
 }
 
 
-function processClipboard(str: string) {
+
+function addHistoryEntry(entry: HistoryEntry) {
+    historyEntries.push(entry);
+    ++historyCount;
+
+    const maxEntries: number = getSetting<number>('maxHistoryEntries', 20);
+
+    while (historyCount > maxEntries) {
+        historyEntries.shift();
+        --historyCount;
+    }
+}
+
+
+function cleanClip(str: string, eol: string) {
+    return removeCommonLeadingWhitespace(trimBlankLines(str, eol));
+}
+
+
+function processClipboardString(str: string) {
     if (str.trim().length === 0) return;
 
     const document = vscode.window.activeTextEditor?.document;
     if (!document) return;
 
     const filename: string = extractFilename(document.fileName);
-    const lines: string[] = removeCommonLeadingWhitespace(trimBlankLines(str, getEndOfLineString(document.eol)));
+    const eol: string = getEndOfLineString(document.eol);
+    const lines: string[] = cleanClip(str, eol);
 
     const lineCountLimit: number = getSetting<number>('lineCountLimit', 0);
     if (lineCountLimit > 0 && lines.length > lineCountLimit) return;
 
-    const entry: HistoryEntry = new HistoryEntry(document.languageId, lines, filename, 0);
-
-    history.push(entry);
-    ++historyCount;
-
-    const maxEntries: number = getSetting<number>('maxHistoryEntries', 20);
-
-    while (historyCount > maxEntries) {
-        history.shift();
-        --historyCount;
-    }
+    const keywords: string[] = indexClip(str);
+    const entry: HistoryEntry = new HistoryEntry(document.languageId, lines, keywords);
+    addHistoryEntry(entry);
 }
 
 
@@ -180,7 +255,7 @@ function handleClipboard() {
     vscode.env.clipboard.readText().then((clipboardContent) => {
         if (clipboardContent !== previousClipboardContent) {
             previousClipboardContent = clipboardContent;
-            processClipboard(previousClipboardContent);
+            processClipboardString(previousClipboardContent);
         }
     });
 }
@@ -208,16 +283,31 @@ function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
 }
 
 
-export function activate(context: vscode.ExtensionContext) {
+function addCommands(context: vscode.ExtensionContext) {
     addCmdClearHistory(context);
     addCmdCopyToClipboard(context);
     addCmdCutToClipboard(context);
+}
 
+
+function addCompletionHandlers(context: vscode.ExtensionContext) {
     let inlineHandler = vscode.languages.registerInlineCompletionItemProvider(
         { scheme: 'file', language: '*' }, new HistoryInlineCompletionProvider()
     );
 
     context.subscriptions.push(inlineHandler);
+
+    let codeCompletionHandler = vscode.languages.registerCompletionItemProvider(
+        { scheme: 'file', language: '*' }, new HistoryCompletionProvider()
+    );
+
+    context.subscriptions.push(codeCompletionHandler);
+}
+
+
+export function activate(context: vscode.ExtensionContext) {
+    addCommands(context);
+    addCompletionHandlers(context);
 }
 
 

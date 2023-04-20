@@ -4,7 +4,7 @@
     "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
@@ -54,7 +54,20 @@
                 "tails.ignoredRegexes": {
                     "type": "array",
                     "description": "Clipboard entries will not be indexed by terms matching these regular expressions"
+                },
+
+                "tails.enableInlineSuggestions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable inline suggestions"
+                },
+
+                "tails.enableCompletions": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable code completion"
                 }
+
             }
         },
         "commands": [
