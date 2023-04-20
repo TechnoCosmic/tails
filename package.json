@@ -1,10 +1,10 @@
 {
     "name": "tails",
     "displayName": "Tails",
-    "description": "Stuff and Things. Clipboard history today, sentient salty AI tomorrow.",
+    "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
@@ -13,6 +13,8 @@
         "Other"
     ],
     "keywords": [
+        "code",
+        "completion",
         "clipboard",
         "history"
     ],
@@ -40,8 +42,8 @@
 
                 "tails.lineCountLimit": {
                     "type": "number",
-                    "default": 5,
-                    "description": "Any cut/copied text with more lines than this will not be put into history"
+                    "default": 0,
+                    "description": "Any cut/copied text with more lines than this will not be put into history. 0 means no limit"
                 },
 
                 "tails.ignoredWords": {

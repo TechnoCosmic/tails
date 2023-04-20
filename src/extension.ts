@@ -2,9 +2,6 @@
 import * as vscode from 'vscode';
 
 
-const MAX_ITEM_LEN: number = 2048;
-
-
 class HistoryEntry {
     languageId: string;
     replacement: string;
@@ -148,7 +145,6 @@ function isIgnoredWord(str: string) {
 function onClipboardChanged(text: string, lineNum: number) {
     if (text.trim().length === 0) return;
     if (alreadyInHistory(text)) return;
-    if (text.length > MAX_ITEM_LEN) return;
 
     const document = vscode.window.activeTextEditor?.document;
     if (!document) return;
@@ -202,19 +198,19 @@ function getSelectionLineCount() {
 
 function addCmdCutToClipboard(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.cutToClipboard', () => {
-        const config = vscode.workspace.getConfiguration('tails');
-        const lineLimit = config.get('lineCountLimit', 5);
-        const lineCount: number = getSelectionLineCount();
+        vscode.commands.executeCommand('editor.action.clipboardCutAction').then(() => {
+            const config = vscode.workspace.getConfiguration('tails');
+            const lineLimit: number = config.get('lineCountLimit', 0);
+            const lineCount: number = getSelectionLineCount();
 
-        if (lineLimit > 0 && lineCount <= lineLimit) {
-            vscode.commands.executeCommand('editor.action.clipboardCutAction').then(() => {
+            if (lineLimit === 0 || lineCount <= lineLimit) {
                 const editor = vscode.window.activeTextEditor;
                 if (!editor) return;
 
                 const lineNum = editor.selection.active.line;
                 checkClipboard(lineNum);
-            });
-        }
+            }
+        });
     });
 
     context.subscriptions.push(cmd);
@@ -223,19 +219,19 @@ function addCmdCutToClipboard(context: vscode.ExtensionContext) {
 
 function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.copyToClipboard', () => {
-        const config = vscode.workspace.getConfiguration('tails');
-        const lineLimit = config.get('lineCountLimit', 5);
-        const lineCount: number = getSelectionLineCount();
+        vscode.commands.executeCommand('editor.action.clipboardCopyAction').then(() => {
+            const config = vscode.workspace.getConfiguration('tails');
+            const lineLimit: number = config.get('lineCountLimit', 0);
+            const lineCount: number = getSelectionLineCount();
 
-        if (lineLimit > 0 && lineCount <= lineLimit) {
-            vscode.commands.executeCommand('editor.action.clipboardCopyAction').then(() => {
+            if (lineLimit === 0 || lineCount <= lineLimit) {
                 const editor = vscode.window.activeTextEditor;
                 if (!editor) return;
 
                 const lineNum = editor.selection.active.line;
                 checkClipboard(lineNum);
-            });
-        }
+            }
+        });
     });
 
     context.subscriptions.push(cmd);
