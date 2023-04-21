@@ -46,20 +46,20 @@ function getCurrentLineIndentation(): string {
 }
 
 
-function isIgnoredWord(str: string) {
+function shouldIndexWord(str: string) {
     const ignoredWords = getSetting<string[]>('ignoredWords', []) || [];
     const ignoredRegexes = getSetting<string[]>('ignoredRegexes', []) || [];
 
     for (let word of ignoredWords) {
-        if (word === str) {
-            return true;
-        }
+        if (word === str) return true;
     }
 
     for (let reg of ignoredRegexes) {
         const match = str.match(reg);
         if (match) return true;
     }
+
+    if (str.length < 4) return true;
 
     return false;
 }
@@ -73,7 +73,7 @@ function indexClip(str: string): string[] {
 
     if (words !== null) {
         words.forEach(word => {
-            if (!isIgnoredWord(word)) {
+            if (!shouldIndexWord(word)) {
                 if (!offers.includes(word)) {
                     offers.push(word);
                 }
@@ -88,6 +88,7 @@ function indexClip(str: string): string[] {
 function makeSuggestion(word: string, repl: string) {
     let item = new vscode.CompletionItem(word);
     item.kind = vscode.CompletionItemKind.User;
+    item.detail = 'Clipboard history';
     item.insertText = repl;
     return item;
 }
@@ -193,7 +194,7 @@ function removeCommonLeadingWhitespace(lines: string[]): string[] {
     let minLeadingWhitespace = Infinity;
 
     for (let line of lines) {
-        if (!line.trim()) continue;
+        if (line.trim().length === 0) continue;
 
         const caps = line.match(/^\s*/);
 
@@ -213,8 +214,23 @@ function removeCommonLeadingWhitespace(lines: string[]): string[] {
 }
 
 
+function alreadyInHistory(entry: HistoryEntry): boolean {
+    for (const cur of historyEntries) {
+        if (cur.languageId !== entry.languageId) continue;
+
+        const curStr: string = cur.replacement.join('\n');
+        const entryStr: string = entry.replacement.join('\n');
+
+        if (curStr === entryStr) return true;
+    }
+
+    return false;
+}
+
 
 function addHistoryEntry(entry: HistoryEntry) {
+    if (alreadyInHistory(entry)) return;
+
     historyEntries.push(entry);
     ++historyCount;
 

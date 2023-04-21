@@ -4,7 +4,7 @@
     "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
