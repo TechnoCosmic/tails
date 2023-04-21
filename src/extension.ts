@@ -14,6 +14,7 @@ class HistoryEntry {
 }
 
 
+let statusBarItem: vscode.StatusBarItem;
 let previousClipboardContent = '';
 let historyEntries: HistoryEntry[] = [];
 let historyCount: number = 0;
@@ -43,6 +44,23 @@ function getCurrentLineIndentation(): string {
     const leadingWhitespace = line.text.match(/^\s*/);
 
     return leadingWhitespace ? leadingWhitespace[0] : "";
+}
+
+
+function updateStatusBarItem() {
+    if (historyCount === 0) {
+        statusBarItem.hide();
+        return;
+    }
+
+    if (historyCount === 1) {
+        statusBarItem.text = '1 clip';
+    }
+    else {
+        statusBarItem.text = historyCount + ' clips';
+    }
+
+    statusBarItem.show();
 }
 
 
@@ -165,6 +183,7 @@ function addCmdClearHistory(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.clearHistory', () => {
         historyEntries = [];
         historyCount = 0;
+        updateStatusBarItem();
     });
 
     context.subscriptions.push(cmd);
@@ -240,6 +259,8 @@ function addHistoryEntry(entry: HistoryEntry) {
         historyEntries.shift();
         --historyCount;
     }
+
+    updateStatusBarItem();
 }
 
 
@@ -324,6 +345,9 @@ function addCompletionHandlers(context: vscode.ExtensionContext) {
 export function activate(context: vscode.ExtensionContext) {
     addCommands(context);
     addCompletionHandlers(context);
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+    updateStatusBarItem();
+    statusBarItem.show();
 }
 
 
