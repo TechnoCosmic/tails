@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.10]
+
+- More random tidy ups and quality of life improvements
+
 ## [1.0.9]
 
 - Optimisations and tidy ups

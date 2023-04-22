@@ -9,9 +9,6 @@ class HistoryEntry {
     keywords: string[];
 
     constructor(langId: string, filename: string, replacement: string[], keywords: string[]) {
-        const suffix: string = replacement.length > 1 ? '...' : '';
-        this.label = replacement[0] + suffix;
-
         const xs: string = replacement.length > 1 ? "s" : "";
         const lineCountStr: string = replacement.length + " line" + xs + ",";
 
@@ -19,6 +16,32 @@ class HistoryEntry {
         this.languageId = langId;
         this.replacement = replacement;
         this.keywords = keywords;
+
+        this.label = this.getLabel();
+    }
+
+
+    public getReplacementText(indent: string, eol: string): string {
+        let str: string = this.replacement.join(eol + indent);
+        let xs: string = (this.replacement.length > 1) ? eol : "";
+        return str + xs;
+    }
+
+
+    private getLabel(): string {
+        const suffix: string = this.replacement.length > 1 ? '...' : '';
+        return this.replacement[0].trim() + suffix;
+    }
+
+
+    private getExtLabel(): string {
+        let str: string = "";
+
+        for (const line of this.replacement) {
+            str += line.trim() + " ";
+        }
+
+        return str.trim();
     }
 }
 
@@ -73,7 +96,7 @@ function updateStatusBarItem() {
 }
 
 
-function shouldIndexWord(str: string) {
+function shouldIgnoreWord(str: string) {
     const ignoredWords = getSetting<string[]>('ignoredWords', []) || [];
     const ignoredRegexes = getSetting<string[]>('ignoredRegexes', []) || [];
 
@@ -98,15 +121,11 @@ function indexClip(str: string): string[] {
 
     let offers: string[] = [];
 
-    if (words !== null) {
-        words.forEach(word => {
-            if (!shouldIndexWord(word)) {
-                if (!offers.includes(word)) {
-                    offers.push(word);
-                }
-            }
-        });
-    }
+    words.forEach(word => {
+        if (!shouldIgnoreWord(word) && !offers.includes(word)) {
+            offers.push(word);
+        }
+    });
 
     return offers;
 }
@@ -128,10 +147,13 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
 
         let items: vscode.CompletionItem[] = [];
         const eol: string = getEndOfLineString(document.eol);
+        const langId = document.languageId;
 
         for (const entry of historyEntries) {
+            if (entry.languageId !== langId) continue;
+
             for (const word of entry.keywords) {
-                const replacement: string = entry.replacement.join(eol);
+                const replacement: string = entry.getReplacementText("", eol);
                 const item = makeSuggestion(word, replacement);
                 items.push(item);
             }
@@ -150,7 +172,7 @@ function showPasteList() {
         const document = editor?.document;
         if (!document) return;
 
-        const clipboardContent = selectedEntry.replacement.join(getEndOfLineString(document.eol));
+        const clipboardContent = selectedEntry.getReplacementText("", getEndOfLineString(document.eol));
         vscode.env.clipboard.writeText(clipboardContent);
 
         vscode.commands.executeCommand('editor.action.clipboardPasteAction');
@@ -172,12 +194,13 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
         if (!isAtEol) return [];
         if (lineText.length < 3) return [];
 
-        const joinStr = getEndOfLineString(document.eol) + getCurrentLineIndentation();
+        const eol: string = getEndOfLineString(document.eol);
+        const indent: string = getCurrentLineIndentation();
 
         for (const entry of historyEntries) {
             if (entry.languageId !== langId) continue;
 
-            const str: string = entry.replacement.join(joinStr);
+            const str: string = entry.getReplacementText(indent, eol);
 
             if (entry.replacement[0].trim().startsWith(lineText)) {
                 const suggestion = new vscode.InlineCompletionItem(str.trim().substring(lineText.length));
@@ -264,7 +287,7 @@ function alreadyInHistory(entry: HistoryEntry): boolean {
 
     for (const cur of historyEntries) {
         if (cur.languageId !== entry.languageId) continue;
-        if (cur.replacement.join('\n') == entryStr) return true;
+        if (cur.replacement.join('\n') === entryStr) return true;
     }
 
     return false;
@@ -301,8 +324,9 @@ function processClipboardString(str: string) {
 
     const filename: string = extractFilename(document.fileName);
     const eol: string = getEndOfLineString(document.eol);
-    const lines: string[] = cleanClip(str, eol);
 
+    // tidy, index, and store the clip
+    const lines: string[] = cleanClip(str, eol);
     const lineCountLimit: number = getSetting<number>('lineCountLimit', 0);
     if (lineCountLimit > 0 && lines.length > lineCountLimit) return;
 
@@ -353,14 +377,6 @@ function addCmdPasteClip(context: vscode.ExtensionContext) {
 }
 
 
-function addCommands(context: vscode.ExtensionContext) {
-    addCmdClearHistory(context);
-    addCmdCopyToClipboard(context);
-    addCmdCutToClipboard(context);
-    addCmdPasteClip(context);
-}
-
-
 function addCompletionHandlers(context: vscode.ExtensionContext) {
     let inlineHandler = vscode.languages.registerInlineCompletionItemProvider(
         { scheme: 'file', language: '*' }, new HistoryInlineCompletionProvider()
@@ -376,13 +392,25 @@ function addCompletionHandlers(context: vscode.ExtensionContext) {
 }
 
 
+function addCommands(context: vscode.ExtensionContext) {
+    addCmdClearHistory(context);
+    addCmdCopyToClipboard(context);
+    addCmdCutToClipboard(context);
+    addCmdPasteClip(context);
+}
+
+
+function addStatusBarItem() {
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+    updateStatusBarItem();
+    statusBarItem.show();
+}
+
+
 export function activate(context: vscode.ExtensionContext) {
     addCommands(context);
     addCompletionHandlers(context);
-    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-    statusBarItem.command = 'tails.pasteClip';
-    updateStatusBarItem();
-    statusBarItem.show();
+    addStatusBarItem();
 }
 
 
