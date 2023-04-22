@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as common from './common';
 
 
-export class HistoryEntry {
+class HistoryEntry {
     label: string;
     detail: string;
     languageId: string;
@@ -52,8 +52,8 @@ export class HistoryEntry {
 }
 
 
-export let historyEntries: HistoryEntry[] = [];
-export let historyCount: number = 0;
+let historyEntries: HistoryEntry[] = [];
+let historyCount: number = 0;
 
 let statusBarItem: vscode.StatusBarItem;
 let previousClipboardContent = '';
