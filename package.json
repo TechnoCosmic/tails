@@ -4,7 +4,7 @@
     "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
@@ -82,6 +82,10 @@
             {
                 "command": "tails.cutToClipboard",
                 "title": "Tails: Cut"
+            },
+            {
+                "command": "tails.pasteClip",
+                "title": "Tails: Paste Clip"
             }
         ],
         "keybindings": [
@@ -95,6 +99,12 @@
               "command": "tails.copyToClipboard",
               "key": "ctrl+c",
               "mac": "cmd+c",
+              "when": "editorTextFocus"
+            },
+            {
+              "command": "tails.pasteClip",
+              "key": "ctrl+shift+v",
+              "mac": "cmd+shift+v",
               "when": "editorTextFocus"
             }
           ]

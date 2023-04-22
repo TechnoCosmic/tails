@@ -2,11 +2,17 @@ import * as vscode from 'vscode';
 
 
 class HistoryEntry {
+    label: string;
+    detail: string = "... from 'blah.cpp'";
     languageId: string;
     replacement: string[];
     keywords: string[];
 
-    constructor(langId: string, replacement: string[], keywords: string[]) {
+    constructor(langId: string, filename: string, replacement: string[], keywords: string[]) {
+        const suffix: string = replacement.length > 1 ? '...' : '';
+        this.label = replacement[0] + suffix;
+
+        this.detail = "... from '" + filename + "'";
         this.languageId = langId;
         this.replacement = replacement;
         this.keywords = keywords;
@@ -127,8 +133,25 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
                 items.push(item);
             }
         }
+
         return items;
     }
+}
+
+
+function showPasteList() {
+    vscode.window.showQuickPick(historyEntries).then((selectedEntry) => {
+        if (!selectedEntry) return;
+
+        const editor = vscode.window.activeTextEditor;
+        const document = editor?.document;
+        if (!document) return;
+
+        const clipboardContent = selectedEntry.replacement.join(getEndOfLineString(document.eol));
+        vscode.env.clipboard.writeText(clipboardContent);
+
+        vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+    });
 }
 
 
@@ -250,13 +273,13 @@ function alreadyInHistory(entry: HistoryEntry): boolean {
 function addHistoryEntry(entry: HistoryEntry) {
     if (alreadyInHistory(entry)) return;
 
-    historyEntries.push(entry);
+    historyEntries.unshift(entry);
     ++historyCount;
 
     const maxEntries: number = getSetting<number>('maxHistoryEntries', 20);
 
     while (historyCount > maxEntries) {
-        historyEntries.shift();
+        historyEntries.pop();
         --historyCount;
     }
 
@@ -283,7 +306,7 @@ function processClipboardString(str: string) {
     if (lineCountLimit > 0 && lines.length > lineCountLimit) return;
 
     const keywords: string[] = indexClip(str);
-    const entry: HistoryEntry = new HistoryEntry(document.languageId, lines, keywords);
+    const entry: HistoryEntry = new HistoryEntry(document.languageId, filename, lines, keywords);
     addHistoryEntry(entry);
 }
 
@@ -320,10 +343,20 @@ function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
 }
 
 
+function addCmdPasteClip(context: vscode.ExtensionContext) {
+    let cmd = vscode.commands.registerCommand('tails.pasteClip', () => {
+        showPasteList();
+    });
+
+    context.subscriptions.push(cmd);
+}
+
+
 function addCommands(context: vscode.ExtensionContext) {
     addCmdClearHistory(context);
     addCmdCopyToClipboard(context);
     addCmdCutToClipboard(context);
+    addCmdPasteClip(context);
 }
 
 
