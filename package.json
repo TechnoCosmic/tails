@@ -73,19 +73,23 @@
         "commands": [
             {
                 "command": "tails.clearHistory",
-                "title": "Tails: Clear Clipboard History"
+                "title": "Clear Clipboard History",
+                "category": "Tails"
             },
             {
                 "command": "tails.copyToClipboard",
-                "title": "Tails: Copy"
+                "title": "Copy",
+                "category": "Tails"
             },
             {
                 "command": "tails.cutToClipboard",
-                "title": "Tails: Cut"
+                "title": "Cut",
+                "category": "Tails"
             },
             {
                 "command": "tails.pasteClip",
-                "title": "Tails: Paste Clip"
+                "title": "Paste Clip",
+                "category": "Tails"
             }
         ],
         "keybindings": [
