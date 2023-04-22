@@ -1,5 +1,10 @@
 # Change Log
 
+## [1.0.8]
+
+- Status bar item
+- pasteClip command to show quick pick list of history
+
 ## [1.0.7]
 
 - Fine tuning on the indexing of clip contents
