@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 
 class HistoryEntry {
     label: string;
-    detail: string = "... from 'blah.cpp'";
+    detail: string;
     languageId: string;
     replacement: string[];
     keywords: string[];
@@ -12,7 +12,10 @@ class HistoryEntry {
         const suffix: string = replacement.length > 1 ? '...' : '';
         this.label = replacement[0] + suffix;
 
-        this.detail = "... from '" + filename + "'";
+        const xs: string = replacement.length > 1 ? "s" : "";
+        const lineCountStr: string = replacement.length + " line" + xs + ",";
+
+        this.detail = "... " + lineCountStr + " from '" + filename + "'";
         this.languageId = langId;
         this.replacement = replacement;
         this.keywords = keywords;
@@ -169,11 +172,11 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
         if (!isAtEol) return [];
         if (lineText.length < 3) return [];
 
+        const joinStr = getEndOfLineString(document.eol) + getCurrentLineIndentation();
+
         for (const entry of historyEntries) {
             if (entry.languageId !== langId) continue;
 
-            const indent = getCurrentLineIndentation();
-            const joinStr = getEndOfLineString(document.eol) + indent;
             const str: string = entry.replacement.join(joinStr);
 
             if (entry.replacement[0].trim().startsWith(lineText)) {
@@ -257,13 +260,11 @@ function removeCommonLeadingWhitespace(lines: string[]): string[] {
 
 
 function alreadyInHistory(entry: HistoryEntry): boolean {
+    const entryStr: string = entry.replacement.join('\n');
+
     for (const cur of historyEntries) {
         if (cur.languageId !== entry.languageId) continue;
-
-        const curStr: string = cur.replacement.join('\n');
-        const entryStr: string = entry.replacement.join('\n');
-
-        if (curStr === entryStr) return true;
+        if (cur.replacement.join('\n') == entryStr) return true;
     }
 
     return false;
@@ -379,6 +380,7 @@ export function activate(context: vscode.ExtensionContext) {
     addCommands(context);
     addCompletionHandlers(context);
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+    statusBarItem.command = 'tails.pasteClip';
     updateStatusBarItem();
     statusBarItem.show();
 }

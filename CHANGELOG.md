@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.9]
+
+- Optimisations and tidy ups
+
 ## [1.0.8]
 
 - Status bar item
