@@ -1,5 +1,5 @@
 ## Features
 
-Simple clipboard history, accessed via code completion. 
+Clipboard history, done simple. 
 
 Documentation to follow.
