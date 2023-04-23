@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.12]
+
+- Commands implemented properly in package.json
+
 ## [1.0.10]
 
 - More random tidy ups and quality of life improvements
