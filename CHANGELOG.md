@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.0.13]
+
+- Clipboard history persists per-workspace
+
 ## [1.0.12]
 
 - Commands implemented properly in package.json

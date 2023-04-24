@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import * as common from './common';
 
 
+let extCtx: vscode.ExtensionContext;
+
+
 class HistoryEntry {
     label: string;
     detail: string;
@@ -210,11 +213,26 @@ function extractFilename(path: string) {
 }
 
 
+function saveHistory(): void {
+    const persist: boolean = common.getSetting<boolean>(`tails.persistHistory`, true);
+    if (!persist) return;
+
+    extCtx.workspaceState.update('tails.historyCount', historyCount);
+    extCtx.workspaceState.update('tails.history', historyEntries);
+}
+
+
+function clearHistory(): void {
+    historyEntries = [];
+    historyCount = 0;
+    updateStatusBarItem();
+    saveHistory();
+}
+
+
 function addCmdClearHistory(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.clearHistory', () => {
-        historyEntries = [];
-        historyCount = 0;
-        updateStatusBarItem();
+        clearHistory();
     });
 
     context.subscriptions.push(cmd);
@@ -290,6 +308,7 @@ function addHistoryEntry(entry: HistoryEntry) {
     }
 
     updateStatusBarItem();
+    saveHistory();
 }
 
 
@@ -389,9 +408,24 @@ function addStatusBarItem() {
 }
 
 
+function loadHistory(): void {
+    const persist: boolean = common.getSetting<boolean>(`tails.persistHistory`, true);
+    if (!persist) return;
+
+    const storedEntries: HistoryEntry[] | undefined = extCtx.workspaceState.get('tails.history');
+    const storedCount: number | undefined = extCtx.workspaceState.get('tails.historyCount');
+
+    if (storedEntries && storedCount) {
+        historyEntries = storedEntries;
+        historyCount = storedCount;
+    }
+}
+
+
 export function connect(context: vscode.ExtensionContext) {
+    extCtx = context;
+
     addCommands(context);
     addCompletionHandlers(context);
     addStatusBarItem();
-
 }
