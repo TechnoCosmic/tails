@@ -424,7 +424,7 @@ function loadHistory(): void {
 
 export function connect(context: vscode.ExtensionContext) {
     extCtx = context;
-
+    loadHistory();
     addCommands(context);
     addCompletionHandlers(context);
     addStatusBarItem();
