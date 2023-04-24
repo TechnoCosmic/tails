@@ -1,6 +1,10 @@
 # Change Log
 
-## [1.0.13]
+## [1.1.2]
+
+- Fug bix for pasting from persisted history.
+
+## [1.1.1]
 
 - Clipboard history persists per-workspace
 

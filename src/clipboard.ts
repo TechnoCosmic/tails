@@ -5,6 +5,19 @@ import * as common from './common';
 let extCtx: vscode.ExtensionContext;
 
 
+function getReplacementText(entry: HistoryEntry, indent: string, eol: string): string {
+    let str: string = entry.replacement.join(eol + indent);
+    let xs: string = (entry.replacement.length > 1) ? eol : "";
+    return str + xs;
+}
+
+
+function getLabel(entry: HistoryEntry): string {
+    const suffix: string = entry.replacement.length > 1 ? '...' : '';
+    return entry.replacement[0].trim() + suffix;
+}
+
+
 class HistoryEntry {
     label: string;
     detail: string;
@@ -26,31 +39,7 @@ class HistoryEntry {
 
         this.fileName = fileName;
 
-        this.label = this.getLabel();
-    }
-
-
-    public getReplacementText(indent: string, eol: string): string {
-        let str: string = this.replacement.join(eol + indent);
-        let xs: string = (this.replacement.length > 1) ? eol : "";
-        return str + xs;
-    }
-
-
-    private getLabel(): string {
-        const suffix: string = this.replacement.length > 1 ? '...' : '';
-        return this.replacement[0].trim() + suffix;
-    }
-
-
-    private getExtLabel(): string {
-        let str: string = "";
-
-        for (const line of this.replacement) {
-            str += line.trim() + " ";
-        }
-
-        return str.trim();
+        this.label = getLabel(this);
     }
 }
 
@@ -136,7 +125,7 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
             if (entry.languageId !== langId) continue;
 
             for (const word of entry.keywords) {
-                const replacement: string = entry.getReplacementText("", eol);
+                const replacement: string = getReplacementText(entry, "", eol);
                 const item = makeSuggestion(word, replacement);
                 items.push(item);
             }
@@ -155,10 +144,12 @@ function showPasteList() {
         const document = editor?.document;
         if (!document) return;
 
-        const clipboardContent = selectedEntry.getReplacementText("", common.getEndOfLineString(document.eol));
-        vscode.env.clipboard.writeText(clipboardContent);
+        const eolStr: string = common.getEndOfLineString(document.eol);
+        const clipboardContent: string = getReplacementText(selectedEntry, "", eolStr);
 
-        vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+        vscode.env.clipboard.writeText(clipboardContent).then(() => {
+            vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+        });
     });
 }
 
@@ -185,7 +176,7 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
         for (const entry of historyEntries) {
             if (entry.languageId !== langId) continue;
 
-            const str: string = entry.getReplacementText(indent, eol);
+            const str: string = getReplacementText(entry, indent, eol);
 
             if (entry.replacement[0].trim().startsWith(lineText)) {
                 const suggestion = new vscode.InlineCompletionItem(str.trim().substring(lineText.length));
