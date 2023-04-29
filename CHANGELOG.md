@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.1.3]
+
+- Added `tails.clipIgnoredRegexes`, and `tails.cutCommand`, `tails.copyCommand`, and `tails.pasteCommand`.
+
 ## [1.1.2]
 
 - Fug bix for pasting from persisted history.

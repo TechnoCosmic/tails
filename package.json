@@ -4,7 +4,7 @@
     "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
@@ -34,6 +34,24 @@
         "configuration": {
             "title": "Tails",
             "properties": {
+                "tails.cutCommand": {
+                    "type": "string",
+                    "default": "editor.action.clipboardCutAction",
+                    "description": "The command ID to call to CUT the selection to the clipboard. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
+                },
+
+                "tails.copyCommand": {
+                    "type": "string",
+                    "default": "editor.action.clipboardCopyAction",
+                    "description": "The command ID to call to COPY the selection to the clipboard. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
+                },
+
+                "tails.pasteCommand": {
+                    "type": "string",
+                    "default": "editor.action.clipboardPasteAction",
+                    "description": "The command ID to call to PASTE the clipboard into the document. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
+                },
+
                 "tails.persistHistory": {
                     "type": "boolean",
                     "default": true,
@@ -52,14 +70,19 @@
                     "description": "Any cut/copied text with more lines than this will not be put into history. 0 means no limit"
                 },
 
-                "tails.ignoredWords": {
+                "tails.indexIgnoredWords": {
                     "type": "array",
                     "description": "Clipboard entries will not be indexed by these words"
                 },
 
-                "tails.ignoredRegexes": {
+                "tails.indexIgnoredRegexes": {
                     "type": "array",
                     "description": "Clipboard entries will not be indexed by terms matching these regular expressions"
+                },
+
+                "tails.clipIgnoredRegexes": {
+                    "type": "array",
+                    "description": "Clipboard entries will not be added to history if they match any of these regular expressions"
                 },
 
                 "tails.enableInlineSuggestions": {

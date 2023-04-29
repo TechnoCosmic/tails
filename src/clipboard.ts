@@ -68,15 +68,27 @@ function updateStatusBarItem() {
 }
 
 
-function shouldIgnoreWord(str: string) {
-    const ignoredWords = common.getSetting<string[]>('ignoredWords', []) || [];
-    const ignoredRegexes = common.getSetting<string[]>('ignoredRegexes', []) || [];
+function shouldIgnoreClip(str: string) {
+    const clipIgnoredRegexes = common.getSetting<string[]>('clipIgnoredRegexes', []) || [];
 
-    for (let word of ignoredWords) {
+    for (let reg of clipIgnoredRegexes) {
+        const r: RegExp = new RegExp(reg, 'gm');
+        if (r.exec(str)) return true;
+    }
+
+    return false;
+}
+
+
+function shouldIndexIgnoreWord(str: string) {
+    const indexIgnoredWords = common.getSetting<string[]>('indexIgnoredWords', []) || [];
+    const indexIgnoredRegexes = common.getSetting<string[]>('indexIgnoredRegexes', []) || [];
+
+    for (let word of indexIgnoredWords) {
         if (word === str) return true;
     }
 
-    for (let reg of ignoredRegexes) {
+    for (let reg of indexIgnoredRegexes) {
         const match = str.match(reg);
         if (match) return true;
     }
@@ -94,7 +106,7 @@ function indexClip(str: string): string[] {
     let offers: string[] = [];
 
     words.forEach(word => {
-        if (!shouldIgnoreWord(word) && !offers.includes(word)) {
+        if (!shouldIndexIgnoreWord(word) && !offers.includes(word)) {
             offers.push(word);
         }
     });
@@ -148,7 +160,8 @@ function showPasteList() {
         const clipboardContent: string = getReplacementText(selectedEntry, "", eolStr);
 
         vscode.env.clipboard.writeText(clipboardContent).then(() => {
-            vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+            const pasteCmd: string = common.getSetting<string>('tails.pasteCommand', 'editor.action.clipboardPasteAction');
+            vscode.commands.executeCommand(pasteCmd);
         });
     });
 }
@@ -164,8 +177,6 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
         const isAtEol = position.character === lineTextOrig.length;
         const lineText = lineTextOrig.substring(0, position.character).trimStart();
         const langId = document.languageId;
-
-        let s = new vscode.SnippetString('Hello ${1:Default}!');
 
         if (!isAtEol) return [];
         if (lineText.length < 3) return [];
@@ -310,6 +321,7 @@ function cleanClip(str: string, eol: string) {
 
 function processClipboardString(str: string) {
     if (str.trim().length === 0) return;
+    if (shouldIgnoreClip(str)) return;
 
     const document = vscode.window.activeTextEditor?.document;
     if (!document) return;
@@ -340,7 +352,9 @@ function handleClipboard() {
 
 function addCmdCutToClipboard(context: vscode.ExtensionContext): void {
     let cmd = vscode.commands.registerCommand('tails.cutToClipboard', () => {
-        vscode.commands.executeCommand('editor.action.clipboardCutAction').then(() => {
+        const cutCmd: string = common.getSetting<string>('tails.cutCommand', 'editor.action.clipboardCutAction');
+
+        vscode.commands.executeCommand(cutCmd).then(() => {
             handleClipboard();
         });
     });
@@ -351,7 +365,9 @@ function addCmdCutToClipboard(context: vscode.ExtensionContext): void {
 
 function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
     let cmd = vscode.commands.registerCommand('tails.copyToClipboard', () => {
-        vscode.commands.executeCommand('editor.action.clipboardCopyAction').then(() => {
+        const copyCmd: string = common.getSetting<string>('tails.copyCommand', 'editor.action.clipboardCopyAction');
+
+        vscode.commands.executeCommand(copyCmd).then(() => {
             handleClipboard();
         });
     });
