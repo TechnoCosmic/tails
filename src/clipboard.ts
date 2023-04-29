@@ -5,7 +5,7 @@ import * as common from './common';
 let extCtx: vscode.ExtensionContext;
 
 
-function getReplacementText(entry: HistoryEntry, indent: string, eol: string): string {
+function getReplacementText(entry: any, indent: string, eol: string): string {
     let str: string = entry.replacement.join(eol + indent);
     let xs: string = (entry.replacement.length > 1) ? eol : "";
     return str + xs;
@@ -28,6 +28,8 @@ class HistoryEntry {
     fileName: string = "";
     lineNumber: number = 0;
 
+    buttons?: vscode.QuickInputButton[];
+
     constructor(langId: string, fileName: string, lineNumber: number, replacement: string[], keywords: string[]) {
         const xs: string = replacement.length > 1 ? "s" : "";
         const lineCountStr: string = replacement.length + " line" + xs + ",";
@@ -36,7 +38,6 @@ class HistoryEntry {
         this.languageId = langId;
         this.replacement = replacement;
         this.keywords = keywords;
-
         this.fileName = fileName;
 
         this.label = getLabel(this);
@@ -49,6 +50,11 @@ let historyCount: number = 0;
 
 let statusBarItem: vscode.StatusBarItem;
 let previousClipboardContent = '';
+
+
+function addButtons(entry: HistoryEntry) {
+    entry.buttons = [{ iconPath: new vscode.ThemeIcon("trash") }];
+}
 
 
 function updateStatusBarItem() {
@@ -148,8 +154,35 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
 }
 
 
+function deleteHistoryItem(index: number) {
+    historyEntries.splice(index, 1);
+    --historyCount;
+    updateStatusBarItem();
+    saveHistory();
+}
+
+
 function showPasteList() {
-    vscode.window.showQuickPick(historyEntries).then((selectedEntry) => {
+    let list = vscode.window.createQuickPick();
+
+    list.items = historyEntries;
+    list.matchOnDetail = true;
+    list.canSelectMany = false;
+
+    list.onDidTriggerItemButton((event) => {
+        if (!event) return;
+
+        const item: HistoryEntry = event.item as HistoryEntry;
+        const index: number = historyEntries.indexOf(item);
+
+        deleteHistoryItem(index);
+        list.items = historyEntries;
+    });
+
+    list.onDidAccept(() => {
+        list.hide();
+
+        const selectedEntry = list.selectedItems[0];
         if (!selectedEntry) return;
 
         const editor = vscode.window.activeTextEditor;
@@ -164,6 +197,8 @@ function showPasteList() {
             vscode.commands.executeCommand(pasteCmd);
         });
     });
+
+    list.show();
 }
 
 
@@ -309,6 +344,7 @@ function addHistoryEntry(entry: HistoryEntry) {
         --historyCount;
     }
 
+    addButtons(entry);
     updateStatusBarItem();
     saveHistory();
 }
@@ -425,6 +461,10 @@ function loadHistory(): void {
     if (storedEntries && storedCount) {
         historyEntries = storedEntries;
         historyCount = storedCount;
+
+        for (let entry of historyEntries) {
+            addButtons(entry);
+        }
     }
 }
 

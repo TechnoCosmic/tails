@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.2.0]
+
+- Can now delete individual clips from history via the paste list.
+
 ## [1.1.3]
 
 - Added `tails.clipIgnoredRegexes`, and `tails.cutCommand`, `tails.copyCommand`, and `tails.pasteCommand`.
