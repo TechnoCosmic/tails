@@ -2,9 +2,6 @@ import * as vscode from 'vscode';
 import * as common from './common';
 
 
-let extCtx: vscode.ExtensionContext;
-
-
 function getReplacementText(entry: any, indent: string, eol: string): string {
     let str: string = entry.replacement.join(eol + indent);
     let xs: string = (entry.replacement.length > 1) ? eol : "";
@@ -52,29 +49,16 @@ let statusBarItem: vscode.StatusBarItem;
 let previousClipboardContent = '';
 
 
-function addButtons(entry: HistoryEntry) {
+function addButtons(entry: HistoryEntry): void {
     entry.buttons = [{ iconPath: new vscode.ThemeIcon("trash") }];
 }
 
 
-function updateStatusBarItem() {
-    if (historyCount === 0) {
-        statusBarItem.hide();
-        return;
-    }
+// *********************************************************************************************************************
+// Clip Filtering
+// *********************************************************************************************************************
 
-    if (historyCount === 1) {
-        statusBarItem.text = '1 clip';
-    }
-    else {
-        statusBarItem.text = historyCount + ' clips';
-    }
-
-    statusBarItem.show();
-}
-
-
-function shouldIgnoreClip(str: string) {
+function shouldIgnoreClip(str: string): boolean {
     const clipIgnoredRegexes = common.getSetting<string[]>('clipIgnoredRegexes', []) || [];
 
     for (let reg of clipIgnoredRegexes) {
@@ -86,7 +70,7 @@ function shouldIgnoreClip(str: string) {
 }
 
 
-function shouldIndexIgnoreWord(str: string) {
+function shouldIndexIgnoreWord(str: string): boolean {
     const indexIgnoredWords = common.getSetting<string[]>('indexIgnoredWords', []) || [];
     const indexIgnoredRegexes = common.getSetting<string[]>('indexIgnoredRegexes', []) || [];
 
@@ -106,7 +90,7 @@ function shouldIndexIgnoreWord(str: string) {
 
 
 function indexClip(str: string): string[] {
-    const words = str.trim().match(/[^\s()[\]{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
+    const words = str.trim().match(/[^\s()[\]'{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
     if (!words) return [];
 
     let offers: string[] = [];
@@ -121,7 +105,11 @@ function indexClip(str: string): string[] {
 }
 
 
-function makeSuggestion(word: string, repl: string) {
+// *********************************************************************************************************************
+// IntelliSense List
+// *********************************************************************************************************************
+
+function makeSuggestion(word: string, repl: string): vscode.CompletionItem {
     let item = new vscode.CompletionItem(word);
     item.kind = vscode.CompletionItemKind.User;
     item.detail = 'Clipboard history';
@@ -154,17 +142,14 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
 }
 
 
-function deleteHistoryItem(index: number) {
-    historyEntries.splice(index, 1);
-    --historyCount;
-    updateStatusBarItem();
-    saveHistory();
-}
+// *********************************************************************************************************************
+// Paste List
+// *********************************************************************************************************************
+
+let list = vscode.window.createQuickPick();
 
 
-function showPasteList() {
-    let list = vscode.window.createQuickPick();
-
+function showPasteList(): void {
     list.items = historyEntries;
     list.matchOnDetail = true;
     list.canSelectMany = false;
@@ -173,6 +158,9 @@ function showPasteList() {
         if (!event) return;
 
         const item: HistoryEntry = event.item as HistoryEntry;
+        if (!item.buttons) return;
+        if (event.button !== item.buttons[0]) return;
+
         const index: number = historyEntries.indexOf(item);
 
         deleteHistoryItem(index);
@@ -201,6 +189,10 @@ function showPasteList() {
     list.show();
 }
 
+
+// *********************************************************************************************************************
+// Inline Suggestions
+// *********************************************************************************************************************
 
 export class HistoryInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
     provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, context: vscode.InlineCompletionContext, token: vscode.CancellationToken): vscode.ProviderResult<vscode.InlineCompletionItem[] | vscode.InlineCompletionList> {
@@ -236,17 +228,42 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
 }
 
 
-function extractFilename(path: string) {
-    let filenameRegex = /\/([^\/]+)$/;
+// *********************************************************************************************************************
+// List Manipulation
+// *********************************************************************************************************************
 
-    if (process.platform === 'win32') {
-        filenameRegex = /.*[\\/](.*)$/;
+function addHistoryEntry(entry: HistoryEntry): void {
+    if (alreadyInHistory(entry)) return;
+
+    historyEntries.unshift(entry);
+    ++historyCount;
+
+    const maxEntries: number = common.getSetting<number>('maxHistoryEntries', 20);
+
+    while (historyCount > maxEntries) {
+        historyEntries.pop();
+        --historyCount;
     }
 
-    const match = path.match(filenameRegex);
-    if (!match) return path;
+    addButtons(entry);
+    updateStatusBarItem();
+    saveHistory();
+}
 
-    return match[1];
+
+function deleteHistoryItem(index: number): void {
+    historyEntries.splice(index, 1);
+    --historyCount;
+    updateStatusBarItem();
+    saveHistory();
+}
+
+
+function clearHistory(): void {
+    historyEntries = [];
+    historyCount = 0;
+    updateStatusBarItem();
+    saveHistory();
 }
 
 
@@ -259,15 +276,14 @@ function saveHistory(): void {
 }
 
 
-function clearHistory(): void {
-    historyEntries = [];
-    historyCount = 0;
-    updateStatusBarItem();
-    saveHistory();
-}
+// *********************************************************************************************************************
+// Commands
+// *********************************************************************************************************************
+
+let extCtx: vscode.ExtensionContext;
 
 
-function addCmdClearHistory(context: vscode.ExtensionContext) {
+function addCmdClearHistory(context: vscode.ExtensionContext): void {
     let cmd = vscode.commands.registerCommand('tails.clearHistory', () => {
         clearHistory();
     });
@@ -331,31 +347,26 @@ function alreadyInHistory(entry: HistoryEntry): boolean {
 }
 
 
-function addHistoryEntry(entry: HistoryEntry) {
-    if (alreadyInHistory(entry)) return;
-
-    historyEntries.unshift(entry);
-    ++historyCount;
-
-    const maxEntries: number = common.getSetting<number>('maxHistoryEntries', 20);
-
-    while (historyCount > maxEntries) {
-        historyEntries.pop();
-        --historyCount;
-    }
-
-    addButtons(entry);
-    updateStatusBarItem();
-    saveHistory();
-}
-
-
-function cleanClip(str: string, eol: string) {
+function cleanClip(str: string, eol: string): string[] {
     return removeCommonLeadingWhitespace(trimBlankLines(str, eol));
 }
 
 
-function processClipboardString(str: string) {
+function extractFilename(path: string): string {
+    let filenameRegex = /\/([^\/]+)$/;
+
+    if (process.platform === 'win32') {
+        filenameRegex = /.*[\\/](.*)$/;
+    }
+
+    const match = path.match(filenameRegex);
+    if (!match) return path;
+
+    return match[1];
+}
+
+
+function processClipboardString(str: string): void {
     if (str.trim().length === 0) return;
     if (shouldIgnoreClip(str)) return;
 
@@ -376,7 +387,7 @@ function processClipboardString(str: string) {
 }
 
 
-function handleClipboard() {
+function handleClipboard(): void {
     vscode.env.clipboard.readText().then((clipboardContent) => {
         if (clipboardContent !== previousClipboardContent) {
             previousClipboardContent = clipboardContent;
@@ -399,7 +410,7 @@ function addCmdCutToClipboard(context: vscode.ExtensionContext): void {
 }
 
 
-function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
+function addCmdCopyToClipboard(context: vscode.ExtensionContext): void {
     let cmd = vscode.commands.registerCommand('tails.copyToClipboard', () => {
         const copyCmd: string = common.getSetting<string>('tails.copyCommand', 'editor.action.clipboardCopyAction');
 
@@ -412,7 +423,7 @@ function addCmdCopyToClipboard(context: vscode.ExtensionContext) {
 }
 
 
-function addCmdPasteClip(context: vscode.ExtensionContext) {
+function addCmdPasteClip(context: vscode.ExtensionContext): void {
     let cmd = vscode.commands.registerCommand('tails.pasteClip', () => {
         showPasteList();
     });
@@ -421,7 +432,7 @@ function addCmdPasteClip(context: vscode.ExtensionContext) {
 }
 
 
-function addCompletionHandlers(context: vscode.ExtensionContext) {
+function addCompletionHandlers(context: vscode.ExtensionContext): void {
     let inlineHandler = vscode.languages.registerInlineCompletionItemProvider(
         { scheme: 'file', language: '*' }, new HistoryInlineCompletionProvider()
     );
@@ -436,7 +447,7 @@ function addCompletionHandlers(context: vscode.ExtensionContext) {
 }
 
 
-function addCommands(context: vscode.ExtensionContext) {
+function addCommands(context: vscode.ExtensionContext): void {
     addCmdClearHistory(context);
     addCmdCopyToClipboard(context);
     addCmdCutToClipboard(context);
@@ -444,7 +455,24 @@ function addCommands(context: vscode.ExtensionContext) {
 }
 
 
-function addStatusBarItem() {
+function updateStatusBarItem(): void {
+    if (historyCount === 0) {
+        statusBarItem.hide();
+        return;
+    }
+
+    if (historyCount === 1) {
+        statusBarItem.text = '1 clip';
+    }
+    else {
+        statusBarItem.text = historyCount + ' clips';
+    }
+
+    statusBarItem.show();
+}
+
+
+function addStatusBarItem(): void {
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
     updateStatusBarItem();
     statusBarItem.show();
@@ -469,7 +497,7 @@ function loadHistory(): void {
 }
 
 
-export function connect(context: vscode.ExtensionContext) {
+export function connect(context: vscode.ExtensionContext): void {
     extCtx = context;
     loadHistory();
     addCommands(context);
