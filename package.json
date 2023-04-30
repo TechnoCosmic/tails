@@ -4,19 +4,20 @@
     "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.3.0",
+    "version": "1.3.2",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
     },
     "categories": [
+        "Programming Languages",
         "Other"
     ],
     "keywords": [
-        "code",
         "completion",
         "clipboard",
-        "history"
+        "history",
+        "ring"
     ],
     "galleryBanner": {
         "color": "#040404",
@@ -34,67 +35,80 @@
         "configuration": {
             "title": "Tails",
             "properties": {
-                "tails.cutCommand": {
-                    "type": "string",
-                    "default": "editor.action.clipboardCutAction",
-                    "description": "The command ID to call to CUT the selection to the clipboard. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
-                },
-
-                "tails.copyCommand": {
-                    "type": "string",
-                    "default": "editor.action.clipboardCopyAction",
-                    "description": "The command ID to call to COPY the selection to the clipboard. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
-                },
-
-                "tails.pasteCommand": {
-                    "type": "string",
-                    "default": "editor.action.clipboardPasteAction",
-                    "description": "The command ID to call to PASTE the clipboard into the document. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
-                },
-
                 "tails.persistHistory": {
+                    "order": 1,
                     "type": "boolean",
                     "default": true,
                     "description": "Determines if Tails should remember clipboard history between sessions (per workspace)"
                 },
 
                 "tails.maxHistoryEntries": {
+                    "order": 1,
                     "type": "number",
                     "default": 20,
                     "description": "The maximum number of clipboard history entries to keep"
                 },
 
-                "tails.lineCountLimit": {
+                "tails.clipFiltering.lineCountLimit": {
                     "type": "number",
                     "default": 0,
                     "description": "Any cut/copied text with more lines than this will not be put into history. 0 means no limit"
                 },
 
-                "tails.indexIgnoredWords": {
-                    "type": "array",
-                    "description": "Clipboard entries will not be indexed by these words"
-                },
-
-                "tails.indexIgnoredRegexes": {
-                    "type": "array",
-                    "description": "Clipboard entries will not be indexed by terms matching these regular expressions"
-                },
-
-                "tails.clipIgnoredRegexes": {
+                "tails.clipFiltering.ignoredRegexes": {
                     "type": "array",
                     "description": "Clipboard entries will not be added to history if they match any of these regular expressions"
                 },
 
-                "tails.enableInlineSuggestions": {
+                "tails.inlineSuggestions.enable": {
                     "type": "boolean",
                     "default": true,
                     "description": "Enable inline suggestions"
                 },
 
-                "tails.enableCompletions": {
+                "tails.intellisense.enable": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Enable code completion"
+                    "description": "Enable IntelliSense code completions"
+                },
+
+                "tails.intellisense.ignoredWords": {
+                    "type": "array",
+                    "description": "Clips will not be indexed by these words, so Tails won't offer the words in the IntelliSense menu"
+                },
+
+                "tails.intellisense.ignoredRegexes": {
+                    "type": "array",
+                    "description": "Clips will not be indexed by terms matching these regular expressions, so Tails won't offer the terms in the IntelliSense menu"
+                },
+
+                "tails.clipRing.lineCountLimit" : {
+                    "type": "number",
+                    "default": 1,
+                    "minimum": 1,
+                    "maximum": 0,
+                    "description": "Clips with more lines than this will not show up as part of the clip ring (see `tails.ringPasteClip` command)"
+                },
+
+                "tails.cutCommand": {
+                    "order": 100,
+                    "type": "string",
+                    "default": "editor.action.clipboardCutAction",
+                    "description": "The command ID to call to CUT the selection to the clipboard. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
+                },
+
+                "tails.copyCommand": {
+                    "order": 100,
+                    "type": "string",
+                    "default": "editor.action.clipboardCopyAction",
+                    "description": "The command ID to call to COPY the selection to the clipboard. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
+                },
+
+                "tails.pasteCommand": {
+                    "order": 100,
+                    "type": "string",
+                    "default": "editor.action.clipboardPasteAction",
+                    "description": "The command ID to call to PASTE the clipboard into the document. Only change this if you are trying to use Tails in conjunction with another clipboard extension"
                 }
 
             }

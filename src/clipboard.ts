@@ -42,13 +42,6 @@ class HistoryEntry {
 }
 
 
-let historyEntries: HistoryEntry[] = [];
-let historyCount: number = 0;
-
-let statusBarItem: vscode.StatusBarItem;
-let previousClipboardContent = '';
-
-
 function addButtons(entry: HistoryEntry): void {
     entry.buttons = [{ iconPath: new vscode.ThemeIcon("trash") }];
 }
@@ -69,10 +62,7 @@ async function pasteText(str: string) {
 // *********************************************************************************************************************
 
 function smartPasteClip(): void {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
-
-    const selection = editor.selection;
+    const selection = vscode.window.activeTextEditor?.selection;
     if (!selection) return;
 
     if (selection.isEmpty) {
@@ -82,6 +72,7 @@ function smartPasteClip(): void {
     }
 }
 
+
 // *********************************************************************************************************************
 // Clip Ring Pasting
 // *********************************************************************************************************************
@@ -90,7 +81,8 @@ let curRingIndex: number = -1;
 
 
 function isValidRingClip(entry: HistoryEntry, docLangId: string): boolean {
-    return entry.languageId == docLangId && entry.replacement.length === 1;
+    const lineCountLimit: number = common.getSetting<number>('clipRing.lineCountLimit', 1);
+    return entry.languageId == docLangId && (lineCountLimit == 0 || entry.replacement.length <= lineCountLimit);
 }
 
 
@@ -99,8 +91,8 @@ function getNextRingClipIndex(afterIndex: number, docLangId: string): number {
     let curIndex: number = startIndex;
 
     while (true) {
-        curIndex = (curIndex + 1) % historyCount;
-        if (curIndex === startIndex) return -1;
+        curIndex = (curIndex + 1) % historyEntries.length;
+        if (curIndex === startIndex) return startIndex;
 
         const entry: HistoryEntry = historyEntries[curIndex];
         if (isValidRingClip(entry, docLangId)) return curIndex;
@@ -116,13 +108,13 @@ function pasteNextFromRing(): void {
     if (!document) return;
 
     const nextRingIndex: number = getNextRingClipIndex(curRingIndex, document.languageId);
-    if (nextRingIndex == curRingIndex) return;
+    if (nextRingIndex === curRingIndex) return;
     if (nextRingIndex < 0) return;
-    if (nextRingIndex >= historyCount) return;
+    if (nextRingIndex >= historyEntries.length) return;
 
-    const anch = editor.selection.anchor;
-    const startPosn = editor.selection.start;
-    const beginning = anch < startPosn ? anch : startPosn;
+    const anch: vscode.Position = editor.selection.anchor;
+    const startPosn: vscode.Position = editor.selection.start;
+    const beginning: vscode.Position = anch < startPosn ? anch : startPosn;
 
     const entry: HistoryEntry = historyEntries[nextRingIndex];
     const clipboardContent: string = getReplacementText(entry, '', common.getEndOfLineString(document.eol));
@@ -130,8 +122,8 @@ function pasteNextFromRing(): void {
     pasteText(clipboardContent).then(() => {
         curRingIndex = nextRingIndex;
 
-        const currentPosition = editor.selection.active;
-        const selectionRange = new vscode.Range(beginning, currentPosition);
+        const currentPosition: vscode.Position = editor.selection.active;
+        const selectionRange: vscode.Range = new vscode.Range(beginning, currentPosition);
 
         editor.selection = new vscode.Selection(selectionRange.start, selectionRange.end);
     });
@@ -143,7 +135,7 @@ function pasteNextFromRing(): void {
 // *********************************************************************************************************************
 
 function shouldIgnoreClip(str: string): boolean {
-    const clipIgnoredRegexes = common.getSetting<string[]>('clipIgnoredRegexes', []) || [];
+    const clipIgnoredRegexes = common.getSetting<string[]>('clipFiltering.ignoredRegexes', []) || [];
 
     for (let reg of clipIgnoredRegexes) {
         const r: RegExp = new RegExp(reg, 'gm');
@@ -154,9 +146,13 @@ function shouldIgnoreClip(str: string): boolean {
 }
 
 
-function shouldIndexIgnoreWord(str: string): boolean {
-    const indexIgnoredWords = common.getSetting<string[]>('indexIgnoredWords', []) || [];
-    const indexIgnoredRegexes = common.getSetting<string[]>('indexIgnoredRegexes', []) || [];
+// *********************************************************************************************************************
+// IntelliSense Indexing
+// *********************************************************************************************************************
+
+function intellisenseShouldIgnoreWord(str: string): boolean {
+    const indexIgnoredWords = common.getSetting<string[]>('intellisense.ignoredWords', []) || [];
+    const indexIgnoredRegexes = common.getSetting<string[]>('intellisense.ignoredRegexes', []) || [];
 
     for (let word of indexIgnoredWords) {
         if (word === str) return true;
@@ -173,14 +169,14 @@ function shouldIndexIgnoreWord(str: string): boolean {
 }
 
 
-function indexClip(str: string): string[] {
+function intellisenseIndexClip(str: string): string[] {
     const words = str.trim().match(/[^\s()[\]\'{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
     if (!words) return [];
 
     let offers: string[] = [];
 
     words.forEach(word => {
-        if (!shouldIndexIgnoreWord(word) && !offers.includes(word)) {
+        if (!intellisenseShouldIgnoreWord(word) && !offers.includes(word)) {
             offers.push(word);
         }
     });
@@ -205,7 +201,7 @@ function makeSuggestion(word: string, repl: string): vscode.CompletionItem {
 export class HistoryCompletionProvider implements vscode.CompletionItemProvider {
     public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken):
         vscode.ProviderResult<vscode.CompletionItem[]> {
-        if (common.getSetting<boolean>('enableCompletions', true) !== true) return [];
+        if (common.getSetting<boolean>('intellisense.enable', true) !== true) return [];
 
         let items: vscode.CompletionItem[] = [];
         const eol: string = common.getEndOfLineString(document.eol);
@@ -277,7 +273,7 @@ function showPasteList(): void {
 
 export class HistoryInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
     provideInlineCompletionItems(document: vscode.TextDocument, position: vscode.Position, context: vscode.InlineCompletionContext, token: vscode.CancellationToken): vscode.ProviderResult<vscode.InlineCompletionItem[] | vscode.InlineCompletionList> {
-        if (common.getSetting<boolean>('enableInlineSuggestions', true) !== true) return [];
+        if (common.getSetting<boolean>('inlineSuggestions.enable', true) !== true) return [];
 
         let suggestions: vscode.InlineCompletionItem[] = [];
 
@@ -313,38 +309,60 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
 // List Manipulation
 // *********************************************************************************************************************
 
-function addHistoryEntry(entry: HistoryEntry): void {
-    if (alreadyInHistory(entry)) return;
+let historyEntries: HistoryEntry[] = [];
 
+
+function addHistoryEntry(entry: HistoryEntry): boolean {
+    if (alreadyInHistory(entry)) return false;
     historyEntries.unshift(entry);
-    ++historyCount;
 
     const maxEntries: number = common.getSetting<number>('maxHistoryEntries', 20);
 
-    while (historyCount > maxEntries) {
+    while (historyEntries.length > maxEntries) {
         historyEntries.pop();
-        --historyCount;
     }
 
     addButtons(entry);
-    updateStatusBarItem();
     saveHistory();
+
+    return true;
 }
 
 
 function deleteHistoryItem(index: number): void {
+    if (index < 0) return;
+    if (index >= historyEntries.length) return;
+
     historyEntries.splice(index, 1);
-    --historyCount;
-    updateStatusBarItem();
     saveHistory();
 }
 
 
 function clearHistory(): void {
     historyEntries = [];
-    historyCount = 0;
-    updateStatusBarItem();
     saveHistory();
+}
+
+
+// *********************************************************************************************************************
+// List Loading/Saving
+// *********************************************************************************************************************
+
+function loadHistory(): void {
+    const persist: boolean = common.getSetting<boolean>(`tails.persistHistory`, true);
+    if (!persist) return;
+
+    const storedEntries: HistoryEntry[] | undefined = extCtx.workspaceState.get('tails.history') || [];
+
+    if (storedEntries) {
+        historyEntries = storedEntries;
+
+        for (let entry of historyEntries) {
+            addButtons(entry);
+        }
+    }
+
+    updateStatusBar();
 }
 
 
@@ -352,26 +370,14 @@ function saveHistory(): void {
     const persist: boolean = common.getSetting<boolean>(`tails.persistHistory`, true);
     if (!persist) return;
 
-    extCtx.workspaceState.update('tails.historyCount', historyCount);
     extCtx.workspaceState.update('tails.history', historyEntries);
+    updateStatusBar();
 }
 
 
 // *********************************************************************************************************************
 // Commands
 // *********************************************************************************************************************
-
-let extCtx: vscode.ExtensionContext;
-
-
-function addCmdClearHistory(context: vscode.ExtensionContext): void {
-    let cmd = vscode.commands.registerCommand('tails.clearHistory', () => {
-        clearHistory();
-    });
-
-    context.subscriptions.push(cmd);
-}
-
 
 function trimBlankLines(str: string, lineTerminator: string): string[] {
     const lines = str.split(lineTerminator);
@@ -447,25 +453,28 @@ function extractFilename(path: string): string {
 }
 
 
-function processClipboardString(str: string): void {
-    if (str.trim().length === 0) return;
-    if (shouldIgnoreClip(str)) return;
+function processClipboardString(str: string): boolean {
+    if (str.trim().length === 0) return false;
+    if (shouldIgnoreClip(str)) return false;
 
     const document = vscode.window.activeTextEditor?.document;
-    if (!document) return;
+    if (!document) return false;
 
     const fileName: string = extractFilename(document.fileName);
     const eol: string = common.getEndOfLineString(document.eol);
 
     // tidy, index, and store the clip
     const lines: string[] = cleanClip(str, eol);
-    const lineCountLimit: number = common.getSetting<number>('lineCountLimit', 0);
-    if (lineCountLimit > 0 && lines.length > lineCountLimit) return;
+    const lineCountLimit: number = common.getSetting<number>('clipFiltering.lineCountLimit', 0);
+    if (lineCountLimit > 0 && lines.length > lineCountLimit) return false;
 
-    const keywords: string[] = indexClip(str);
+    const keywords: string[] = intellisenseIndexClip(str);
     const entry: HistoryEntry = new HistoryEntry(document.languageId, fileName, 0, lines, keywords);
-    addHistoryEntry(entry);
+    return addHistoryEntry(entry);
 }
+
+
+let previousClipboardContent = '';
 
 
 function handleClipboard(): void {
@@ -475,6 +484,55 @@ function handleClipboard(): void {
             processClipboardString(previousClipboardContent);
         }
     });
+}
+
+
+// *********************************************************************************************************************
+// Status Bar Item
+// *********************************************************************************************************************
+
+let statusBarItem: vscode.StatusBarItem;
+
+
+function updateStatusBar(): void {
+    if (!statusBarItem) return;
+
+    if (historyEntries.length === 0) {
+        statusBarItem.hide();
+        return;
+    }
+
+    if (historyEntries.length === 1) {
+        statusBarItem.text = '1 clip';
+    }
+    else {
+        statusBarItem.text = historyEntries.length + ' clips';
+    }
+
+    statusBarItem.show();
+}
+
+
+function addStatusBarItem(): void {
+    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+    updateStatusBar();
+    statusBarItem.show();
+}
+
+
+// *********************************************************************************************************************
+// Context/Connection
+// *********************************************************************************************************************
+
+let extCtx: vscode.ExtensionContext;
+
+
+function addCmdClearHistory(context: vscode.ExtensionContext): void {
+    let cmd = vscode.commands.registerCommand('tails.clearHistory', () => {
+        clearHistory();
+    });
+
+    context.subscriptions.push(cmd);
 }
 
 
@@ -556,52 +614,10 @@ function addCommands(context: vscode.ExtensionContext): void {
 }
 
 
-function updateStatusBarItem(): void {
-    if (historyCount === 0) {
-        statusBarItem.hide();
-        return;
-    }
-
-    if (historyCount === 1) {
-        statusBarItem.text = '1 clip';
-    }
-    else {
-        statusBarItem.text = historyCount + ' clips';
-    }
-
-    statusBarItem.show();
-}
-
-
-function addStatusBarItem(): void {
-    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-    updateStatusBarItem();
-    statusBarItem.show();
-}
-
-
-function loadHistory(): void {
-    const persist: boolean = common.getSetting<boolean>(`tails.persistHistory`, true);
-    if (!persist) return;
-
-    const storedEntries: HistoryEntry[] | undefined = extCtx.workspaceState.get('tails.history');
-    const storedCount: number | undefined = extCtx.workspaceState.get('tails.historyCount');
-
-    if (storedEntries && storedCount) {
-        historyEntries = storedEntries;
-        historyCount = storedCount;
-
-        for (let entry of historyEntries) {
-            addButtons(entry);
-        }
-    }
-}
-
-
 export function connect(context: vscode.ExtensionContext): void {
     extCtx = context;
+    addStatusBarItem();
     loadHistory();
     addCommands(context);
     addCompletionHandlers(context);
-    addStatusBarItem();
 }

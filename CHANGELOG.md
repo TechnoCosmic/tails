@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.3.1]
+
+- Added setting (`tails.clipRing.lineCountLimit`) to help limit which clips are eligible for pasting with the `tails.ringPasteClip` command.
+
 ## [1.3.0]
 
 - Basic clipboard ring pasting, plus smart paste. Hard-coded to only consider single line clips as substitutes for now. Next revision will get regexes and stuff for filtering, like the other features have.

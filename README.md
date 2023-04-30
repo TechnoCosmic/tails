@@ -9,11 +9,11 @@ Comprehensive clipboard history.
 Tails offers four ways to paste clips...
 
 1) From a quick pick list accessed via the `tails.pasteClip` command (default keybinding is `ctrl+shift+v`).
-2) From an Intellisense context menu. This is where *indexing* (see below) is used.
+2) From an IntelliSense context menu. This is where *indexing* (see below) is used.
 3) Inline suggestions. If you start typing a clip (from it's start), Tails will offer the clip as a sexy little inline suggestion.
-4) Clipboard Ring: Single line clips can be pasted in sequence into the current selection using `tails.ringPasteClip` (`tails.smartPasteClip` will use ring pasting when there's a selected range of text when activated, and will use `tails.pasteClip` when there's no range selected).
+4) Clipboard Ring: Clips can be pasted in sequence into the current selection using `tails.ringPasteClip` (`tails.smartPasteClip` will use ring pasting when there's a selected range of text when activated, and will use `tails.pasteClip` when there's no range selected). You can control which clips are cycled through with the `tails.clipRing.lineCountLimit` setting.
 
-You can disable the use of #2 via `tails.enableCompletions`, and #3 can be disabled via `tails.enableInlineSuggestions`.
+You can disable the use of the second point via `tails.intelliSense.enable`, and point threee can be disabled via `tails.inlineSuggestions.enable`.
 
 ### History Control
 
@@ -21,7 +21,7 @@ You can disable the use of #2 via `tails.enableCompletions`, and #3 can be disab
 
 `tails.maxHistoryEntries` controls the maximum number of history entries before tossing out older clips.
 
-`tails.lineCountLimit` lets you tell Tails not to remember giant copy/paste efforts by setting a limit to the number of lines a clip can contain. If you cut/copy anything longer than this, Tails will pretend it didn't notice.
+`tails.clipFiltering.lineCountLimit` lets you tell Tails not to remember giant copy/paste efforts by setting a limit to the number of lines a clip can contain. If you cut/copy anything longer than this, Tails will pretend it didn't notice.
 
 `tails.clipIgnoredRegexes` controls whether a clip will be entered into history. Clips matching any of these regular expressions will be ignored by Tails.
 

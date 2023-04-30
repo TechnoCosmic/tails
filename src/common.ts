@@ -28,3 +28,13 @@ export function getCurrentLineIndentation(): string {
 }
 
 
+export function getCurrentSelection() {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return null;
+
+    const selection = editor.selection;
+    if (selection.isEmpty) return null;
+
+    const selectedText = editor.document.getText(selection);
+    return selectedText;
+}
