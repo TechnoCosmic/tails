@@ -1,16 +1,17 @@
 ## Features
 
-Clipboard history, done simple. 
+Comprehensive clipboard history.
 
 ## Settings
 
 ### Feature Control
 
-Tails offers three ways to paste clips...
+Tails offers four ways to paste clips...
 
 1) From a quick pick list accessed via the `tails.pasteClip` command (default keybinding is `ctrl+shift+v`).
 2) From an Intellisense context menu. This is where *indexing* (see below) is used.
 3) Inline suggestions. If you start typing a clip (from it's start), Tails will offer the clip as a sexy little inline suggestion.
+4) Clipboard Ring: Single line clips can be pasted in sequence into the current selection using `tails.ringPasteClip` (`tails.smartPasteClip` will use ring pasting when there's a selected range of text when activated, and will use `tails.pasteClip` when there's no range selected).
 
 You can disable the use of #2 via `tails.enableCompletions`, and #3 can be disabled via `tails.enableInlineSuggestions`.
 

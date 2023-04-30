@@ -54,6 +54,90 @@ function addButtons(entry: HistoryEntry): void {
 }
 
 
+async function pasteText(str: string) {
+    await vscode.env.clipboard.writeText(str).then(() => {
+        const pasteCmd: string = common.getSetting<string>('tails.pasteCommand', 'editor.action.clipboardPasteAction');
+        return vscode.commands.executeCommand(pasteCmd);
+    });
+
+    return undefined;
+}
+
+
+// *********************************************************************************************************************
+// Smart Paste Clip
+// *********************************************************************************************************************
+
+function smartPasteClip(): void {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+
+    const selection = editor.selection;
+    if (!selection) return;
+
+    if (selection.isEmpty) {
+        showPasteList();
+    } else {
+        pasteNextFromRing();
+    }
+}
+
+// *********************************************************************************************************************
+// Clip Ring Pasting
+// *********************************************************************************************************************
+
+let curRingIndex: number = -1;
+
+
+function isValidRingClip(entry: HistoryEntry, docLangId: string): boolean {
+    return entry.languageId == docLangId && entry.replacement.length === 1;
+}
+
+
+function getNextRingClipIndex(afterIndex: number, docLangId: string): number {
+    const startIndex: number = afterIndex;
+    let curIndex: number = startIndex;
+
+    while (true) {
+        curIndex = (curIndex + 1) % historyCount;
+        if (curIndex === startIndex) return -1;
+
+        const entry: HistoryEntry = historyEntries[curIndex];
+        if (isValidRingClip(entry, docLangId)) return curIndex;
+    }
+}
+
+
+function pasteNextFromRing(): void {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+
+    const { document } = editor;
+    if (!document) return;
+
+    const nextRingIndex: number = getNextRingClipIndex(curRingIndex, document.languageId);
+    if (nextRingIndex == curRingIndex) return;
+    if (nextRingIndex < 0) return;
+    if (nextRingIndex >= historyCount) return;
+
+    const anch = editor.selection.anchor;
+    const startPosn = editor.selection.start;
+    const beginning = anch < startPosn ? anch : startPosn;
+
+    const entry: HistoryEntry = historyEntries[nextRingIndex];
+    const clipboardContent: string = getReplacementText(entry, '', common.getEndOfLineString(document.eol));
+
+    pasteText(clipboardContent).then(() => {
+        curRingIndex = nextRingIndex;
+
+        const currentPosition = editor.selection.active;
+        const selectionRange = new vscode.Range(beginning, currentPosition);
+
+        editor.selection = new vscode.Selection(selectionRange.start, selectionRange.end);
+    });
+}
+
+
 // *********************************************************************************************************************
 // Clip Filtering
 // *********************************************************************************************************************
@@ -90,7 +174,7 @@ function shouldIndexIgnoreWord(str: string): boolean {
 
 
 function indexClip(str: string): string[] {
-    const words = str.trim().match(/[^\s()[\]'{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
+    const words = str.trim().match(/[^\s()[\]\'{}<>,.:;=+*&^%$#@!`~?|\\/]+/g);
     if (!words) return [];
 
     let offers: string[] = [];
@@ -180,10 +264,7 @@ function showPasteList(): void {
         const eolStr: string = common.getEndOfLineString(document.eol);
         const clipboardContent: string = getReplacementText(selectedEntry, "", eolStr);
 
-        vscode.env.clipboard.writeText(clipboardContent).then(() => {
-            const pasteCmd: string = common.getSetting<string>('tails.pasteCommand', 'editor.action.clipboardPasteAction');
-            vscode.commands.executeCommand(pasteCmd);
-        });
+        pasteText(clipboardContent);
     });
 
     list.show();
@@ -432,6 +513,24 @@ function addCmdPasteClip(context: vscode.ExtensionContext): void {
 }
 
 
+function addCmdRingPasteClip(context: vscode.ExtensionContext): void {
+    let cmd = vscode.commands.registerCommand('tails.ringPasteClip', () => {
+        pasteNextFromRing();
+    });
+
+    context.subscriptions.push(cmd);
+}
+
+
+function addCmdSmartPasteClip(context: vscode.ExtensionContext): void {
+    let cmd = vscode.commands.registerCommand('tails.smartPasteClip', () => {
+        smartPasteClip();
+    });
+
+    context.subscriptions.push(cmd);
+}
+
+
 function addCompletionHandlers(context: vscode.ExtensionContext): void {
     let inlineHandler = vscode.languages.registerInlineCompletionItemProvider(
         { scheme: 'file', language: '*' }, new HistoryInlineCompletionProvider()
@@ -452,6 +551,8 @@ function addCommands(context: vscode.ExtensionContext): void {
     addCmdCopyToClipboard(context);
     addCmdCutToClipboard(context);
     addCmdPasteClip(context);
+    addCmdRingPasteClip(context);
+    addCmdSmartPasteClip(context);
 }
 
 
