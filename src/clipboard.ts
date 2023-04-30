@@ -245,6 +245,11 @@ function showPasteList(): void {
 
         deleteHistoryItem(index);
         list.items = historyEntries;
+
+        if (historyEntries.length === 0) {
+            list.hide();
+            return;
+        }
     });
 
     list.onDidAccept(() => {
@@ -253,8 +258,7 @@ function showPasteList(): void {
         const selectedEntry = list.selectedItems[0];
         if (!selectedEntry) return;
 
-        const editor = vscode.window.activeTextEditor;
-        const document = editor?.document;
+        const document = vscode.window.activeTextEditor?.document;
         if (!document) return;
 
         const eolStr: string = common.getEndOfLineString(document.eol);
