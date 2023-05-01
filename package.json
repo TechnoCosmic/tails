@@ -4,7 +4,7 @@
     "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.3.3",
+    "version": "1.4.0",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
@@ -142,6 +142,11 @@
             {
                 "command": "tails.smartPasteClip",
                 "title": "Paste Clip (Smart)",
+                "category": "Tails"
+            },
+            {
+                "command": "tails.csvPaste",
+                "title": "Paste All as CSV",
                 "category": "Tails"
             }
         ],

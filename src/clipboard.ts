@@ -48,10 +48,34 @@ function addButtons(entry: HistoryEntry): void {
 
 
 async function pasteText(str: string) {
-    return await vscode.env.clipboard.writeText(str).then(() => {
-        const pasteCmd: string = common.getSetting<string>('tails.pasteCommand', 'editor.action.clipboardPasteAction');
-        return vscode.commands.executeCommand(pasteCmd);
-    });
+    const pasteCmd: string = common.getSetting<string>('tails.pasteCommand', 'editor.action.clipboardPasteAction');
+    await vscode.env.clipboard.writeText(str);
+    return vscode.commands.executeCommand(pasteCmd);
+}
+
+
+// *********************************************************************************************************************
+// CSV Paste
+// *********************************************************************************************************************
+
+function pasteAsCsv(): void {
+    let outStr: string = "";
+    let doneOne: boolean = false;
+
+    for (const entry of historyEntries) {
+        for (const str of entry.replacement) {
+            const escaped: string = str.replace(new RegExp('\"', 'g'), '\\\"');
+
+            if (doneOne) outStr += ", ";
+            doneOne = true;
+
+            outStr += '"' + escaped + '"';
+        }
+    }
+
+    if (doneOne) {
+        pasteText(outStr);
+    }
 }
 
 
@@ -567,6 +591,15 @@ function addCmdCopyToClipboard(context: vscode.ExtensionContext): void {
 }
 
 
+function addCmdCsvPaste(context: vscode.ExtensionContext): void {
+    let cmd = vscode.commands.registerCommand('tails.csvPaste', () => {
+        pasteAsCsv();
+    });
+
+    context.subscriptions.push(cmd);
+}
+
+
 function addCmdPasteClip(context: vscode.ExtensionContext): void {
     let cmd = vscode.commands.registerCommand('tails.pasteClip', () => {
         showPasteList();
@@ -616,6 +649,7 @@ function addCommands(context: vscode.ExtensionContext): void {
     addCmdPasteClip(context);
     addCmdRingPasteClip(context);
     addCmdSmartPasteClip(context);
+    addCmdCsvPaste(context);
 }
 
 
