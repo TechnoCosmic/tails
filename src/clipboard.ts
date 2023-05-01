@@ -58,18 +58,33 @@ async function pasteText(str: string) {
 // CSV Paste
 // *********************************************************************************************************************
 
-function pasteAsCsv(): void {
+async function pasteAsCsv() {
     let outStr: string = "";
     let doneOne: boolean = false;
 
+    if (historyEntries.length === 0) {
+        vscode.window.showErrorMessage('No clips to paste');
+        return;
+    }
+
+    const wrapStr: string = await vscode.window.showInputBox({
+        prompt: "Optional wrapping character",
+        placeHolder: 'e.g. \"',
+        value: ''
+    }) || "";
+
     for (const entry of historyEntries) {
         for (const str of entry.replacement) {
-            const escaped: string = str.replace(new RegExp('\"', 'g'), '\\\"');
+            let escaped: string = str;
+
+            if (wrapStr.length > 0) {
+                escaped = str.replace(new RegExp(wrapStr[0], 'g'), '\\' + wrapStr[0] + '');
+            }
 
             if (doneOne) outStr += ", ";
             doneOne = true;
 
-            outStr += '"' + escaped + '"';
+            outStr += wrapStr + escaped + wrapStr;
         }
     }
 
