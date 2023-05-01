@@ -48,12 +48,10 @@ function addButtons(entry: HistoryEntry): void {
 
 
 async function pasteText(str: string) {
-    await vscode.env.clipboard.writeText(str).then(() => {
+    return await vscode.env.clipboard.writeText(str).then(() => {
         const pasteCmd: string = common.getSetting<string>('tails.pasteCommand', 'editor.action.clipboardPasteAction');
         return vscode.commands.executeCommand(pasteCmd);
     });
-
-    return undefined;
 }
 
 
@@ -233,6 +231,7 @@ function showPasteList(): void {
     list.items = historyEntries;
     list.matchOnDetail = true;
     list.canSelectMany = false;
+    list.value = '';
 
     list.onDidTriggerItemButton((event) => {
         if (!event) return;
@@ -252,11 +251,13 @@ function showPasteList(): void {
         }
     });
 
-    list.onDidAccept(() => {
+    list.onDidAccept(async () => {
         list.hide();
 
         const selectedEntry = list.selectedItems[0];
         if (!selectedEntry) return;
+
+        list.selectedItems = [];
 
         const document = vscode.window.activeTextEditor?.document;
         if (!document) return;
@@ -264,7 +265,7 @@ function showPasteList(): void {
         const eolStr: string = common.getEndOfLineString(document.eol);
         const clipboardContent: string = getReplacementText(selectedEntry, "", eolStr);
 
-        pasteText(clipboardContent);
+        await pasteText(clipboardContent);
     });
 
     list.show();
