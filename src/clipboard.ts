@@ -572,6 +572,7 @@ function addStatusBarItem(): void {
 // *********************************************************************************************************************
 
 let extCtx: vscode.ExtensionContext;
+let lastCutTimestamp: number = 0;
 
 
 function addCmdClearHistory(context: vscode.ExtensionContext): void {
@@ -586,9 +587,17 @@ function addCmdClearHistory(context: vscode.ExtensionContext): void {
 function addCmdCutToClipboard(context: vscode.ExtensionContext): void {
     let cmd = vscode.commands.registerCommand('tails.cutToClipboard', () => {
         const cutCmd: string = common.getSetting<string>('tails.cutCommand', 'editor.action.clipboardCutAction');
+        const throttleMs: number = common.getSetting<number>('tails.clipFiltering.cutThrottleMilliseconds', 500);
+
+        const curTimestamp: number = Date.now();
+        const diffTimestamp: number = curTimestamp - lastCutTimestamp;
+
+        lastCutTimestamp = curTimestamp;
 
         vscode.commands.executeCommand(cutCmd).then(() => {
-            handleClipboard();
+            if (diffTimestamp >= throttleMs) {
+                handleClipboard();
+            }
         });
     });
 
