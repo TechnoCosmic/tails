@@ -512,6 +512,9 @@ function processClipboardString(str: string): boolean {
     const lineCountLimit: number = common.getSetting<number>('clipFiltering.lineCountLimit', 0);
     if (lineCountLimit > 0 && lines.length > lineCountLimit) return false;
 
+    const charCountMin: number = common.getSetting<number>('clipFiltering.singleLineCharCountMinimum', 4);
+    if (charCountMin > 0 && lines.length === 1 && lines[0].length < charCountMin) return false;
+
     const keywords: string[] = intellisenseIndexClip(str);
     const entry: HistoryEntry = new HistoryEntry(document.languageId, fileName, 0, lines, keywords);
     return addHistoryEntry(entry);

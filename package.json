@@ -4,7 +4,7 @@
     "description": "Clipboard history today, salty sentient AI tomorrow.",
     "author": "Dirk Mahoney",
     "publisher": "tcri",
-    "version": "1.4.1",
+    "version": "1.4.2",
     "icon": "images/icon.png",
     "engines": {
         "vscode": "^1.77.0"
@@ -53,6 +53,12 @@
                     "type": "number",
                     "default": 0,
                     "description": "Any cut/copied text with more lines than this will not be put into history. 0 means no limit"
+                },
+
+                "tails.clipFiltering.singleLineCharCountMinimum": {
+                    "type": "number",
+                    "default": 4,
+                    "description": "Any clip that is a single line must have at least this many characters to be put into history. 0 means no minimum"
                 },
 
                 "tails.clipFiltering.ignoredRegexes": {
