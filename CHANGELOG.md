@@ -1,5 +1,11 @@
 # Change Log
 
+## [1.5.1]
+
+- `tails.csvPaste` command to paste lines from your clip history as a CSV, optionally delimited and escaped.
+- `tails.singleLineCharCountMinimum` setting to ignore single lines with next-to-no content on them.
+- Rapid-fire CUT throttling, controlled via `tails.cutThrottleMilliseconds`. Tails will ignore repeated CUT operations issued within this time period of the previous. This is so you can spam CUT to kill multiple lines the lazy way, without clogging up your history.
+
 ## [1.3.1]
 
 - Added setting (`tails.clipRing.lineCountLimit`) to help limit which clips are eligible for pasting with the `tails.ringPasteClip` command.

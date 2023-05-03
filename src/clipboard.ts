@@ -16,6 +16,8 @@ function getLabel(entry: HistoryEntry): string {
 
 
 class HistoryEntry {
+    timestamp: number;
+
     label: string;
     detail: string;
     languageId: string;
@@ -27,10 +29,11 @@ class HistoryEntry {
 
     buttons?: vscode.QuickInputButton[];
 
-    constructor(langId: string, fileName: string, lineNumber: number, replacement: string[], keywords: string[]) {
+    constructor(timestamp: number, langId: string, fileName: string, lineNumber: number, replacement: string[], keywords: string[]) {
         const xs: string = replacement.length > 1 ? "s" : "";
         const lineCountStr: string = replacement.length + " line" + xs + ",";
 
+        this.timestamp = timestamp;
         this.detail = "... " + lineCountStr + " from '" + fileName + "'";
         this.languageId = langId;
         this.replacement = replacement;
@@ -281,7 +284,7 @@ function showPasteList(): void {
 
         const index: number = historyEntries.indexOf(item);
 
-        deleteHistoryItem(index);
+        deleteHistoryEntryByIndex(index);
         list.items = historyEntries;
 
         if (historyEntries.length === 0) {
@@ -373,11 +376,25 @@ function addHistoryEntry(entry: HistoryEntry): boolean {
 }
 
 
-function deleteHistoryItem(index: number): void {
+function deleteHistoryEntryByIndex(index: number): void {
     if (index < 0) return;
     if (index >= historyEntries.length) return;
 
     historyEntries.splice(index, 1);
+    saveHistory();
+}
+
+
+function deleteHistoryEntryByTimestamp(timestamp: number): void {
+    if (timestamp === 0) return;
+
+    for (let i: number = 0; i < historyEntries.length; ++i) {
+        if (historyEntries[i].timestamp === timestamp) {
+            historyEntries.splice(i, 1);
+            break;
+        }
+    }
+
     saveHistory();
 }
 
@@ -497,12 +514,12 @@ function extractFilename(path: string): string {
 }
 
 
-function processClipboardString(str: string): boolean {
-    if (str.trim().length === 0) return false;
-    if (shouldIgnoreClip(str)) return false;
+function processClipboardString(str: string): number {
+    if (str.trim().length === 0) return 0;
+    if (shouldIgnoreClip(str)) return 0;
 
     const document = vscode.window.activeTextEditor?.document;
-    if (!document) return false;
+    if (!document) return 0;
 
     const fileName: string = extractFilename(document.fileName);
     const eol: string = common.getEndOfLineString(document.eol);
@@ -510,26 +527,29 @@ function processClipboardString(str: string): boolean {
     // tidy, index, and store the clip
     const lines: string[] = cleanClip(str, eol);
     const lineCountLimit: number = common.getSetting<number>('clipFiltering.lineCountLimit', 0);
-    if (lineCountLimit > 0 && lines.length > lineCountLimit) return false;
+    if (lineCountLimit > 0 && lines.length > lineCountLimit) return 0;
 
     const charCountMin: number = common.getSetting<number>('clipFiltering.singleLineCharCountMinimum', 4);
-    if (charCountMin > 0 && lines.length === 1 && lines[0].length < charCountMin) return false;
+    if (charCountMin > 0 && lines.length === 1 && lines[0].length < charCountMin) return 0;
 
     const keywords: string[] = intellisenseIndexClip(str);
-    const entry: HistoryEntry = new HistoryEntry(document.languageId, fileName, 0, lines, keywords);
-    return addHistoryEntry(entry);
+    const entry: HistoryEntry = new HistoryEntry(Date.now(), document.languageId, fileName, 0, lines, keywords);
+
+    if (addHistoryEntry(entry)) {
+        return entry.timestamp;
+    }
+
+    return 0;
 }
 
 
-let previousClipboardContent = '';
+let lastAddedTimestamp: number = 0;
 
 
 function handleClipboard(): void {
     vscode.env.clipboard.readText().then((clipboardContent) => {
-        if (clipboardContent !== previousClipboardContent) {
-            previousClipboardContent = clipboardContent;
-            processClipboardString(previousClipboardContent);
-        }
+        const curTimestamp: number = processClipboardString(clipboardContent);
+        if (curTimestamp) lastAddedTimestamp = curTimestamp;
     });
 }
 
@@ -597,6 +617,14 @@ function addCmdCutToClipboard(context: vscode.ExtensionContext): void {
         vscode.commands.executeCommand(cutCmd).then(() => {
             if (diffTimestamp >= throttleMs) {
                 handleClipboard();
+            }
+            else if (lastAddedTimestamp > 0) {
+                const diff: number = Date.now() - lastAddedTimestamp;
+
+                if (diff < throttleMs) {
+                    deleteHistoryEntryByTimestamp(lastAddedTimestamp);
+                    lastAddedTimestamp = 0;
+                }
             }
         });
     });
