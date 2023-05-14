@@ -178,9 +178,11 @@ function shouldIgnoreClip(str: string): boolean {
     const clipIgnoredRegexes = common.getSetting<string[]>('clipFiltering.ignoredRegexes', []) || [];
 
     for (let reg of clipIgnoredRegexes) {
-        const r: RegExp = new RegExp(reg, 'gm');
-        if (r.exec(str)) return true;
+        const r: RegExp = new RegExp(reg);
+        const res = r.test(str);
+        if (res) return true;
     }
+
 
     return false;
 }
