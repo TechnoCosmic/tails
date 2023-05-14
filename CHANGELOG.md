@@ -1,5 +1,9 @@
 # Change Log
 
+## [1.5.2]
+
+- Added `tails.intellisense.maxLineCount` setting.
+
 ## [1.5.1]
 
 - `tails.csvPaste` command to paste lines from your clip history as a CSV, optionally delimited and escaped.

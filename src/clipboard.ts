@@ -338,6 +338,9 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
         for (const entry of historyEntries) {
             if (entry.languageId !== langId) continue;
 
+            const maxLines: number = common.getSetting<number>('intellisense.maxLineCount', 0);
+            if (maxLines > 0 && entry.replacement.length > maxLines) continue;
+
             const str: string = getReplacementText(entry, indent, eol);
 
             if (entry.replacement[0].trim().startsWith(lineText)) {
