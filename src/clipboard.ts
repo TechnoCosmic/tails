@@ -231,6 +231,17 @@ function intellisenseIndexClip(str: string): string[] {
 // IntelliSense List
 // *********************************************************************************************************************
 
+function updateUserWords(): void {
+    userWordDict.clear();
+
+    for (const entry of historyEntries) {
+        for (const word of entry.keywords) {
+            userWordDict.set(word, true);
+        }
+    }
+}
+
+
 function makeSuggestion(word: string, repl: string): vscode.CompletionItem {
     let item = new vscode.CompletionItem(word);
     item.kind = vscode.CompletionItemKind.User;
@@ -246,17 +257,10 @@ export class HistoryCompletionProvider implements vscode.CompletionItemProvider 
         if (common.getSetting<boolean>('intellisense.enable', true) !== true) return [];
 
         let items: vscode.CompletionItem[] = [];
-        const eol: string = common.getEndOfLineString(document.eol);
-        const langId = document.languageId;
 
-        for (const entry of historyEntries) {
-            if (entry.languageId !== langId) continue;
-
-            for (const word of entry.keywords) {
-                const replacement: string = getReplacementText(entry, "", eol);
-                const item = makeSuggestion(word, replacement);
-                items.push(item);
-            }
+        for (const word of userWordDict) {
+            const item = makeSuggestion(word[0], word[0]);
+            items.push(item);
         }
 
         return items;
@@ -362,6 +366,7 @@ export class HistoryInlineCompletionProvider implements vscode.InlineCompletionI
 // *********************************************************************************************************************
 
 let historyEntries: HistoryEntry[] = [];
+const userWordDict = new Map<string, boolean>();
 
 
 function addHistoryEntry(entry: HistoryEntry): boolean {
@@ -428,6 +433,7 @@ function loadHistory(): void {
         }
     }
 
+    updateUserWords();
     updateStatusBar();
 }
 
@@ -437,6 +443,7 @@ function saveHistory(): void {
     if (!persist) return;
 
     extCtx.workspaceState.update('tails.history', historyEntries);
+    updateUserWords();
     updateStatusBar();
 }
 
